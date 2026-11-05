@@ -1,5 +1,5 @@
-/* STREET COINS V22 */
-const APP_VERSION="V22";
+/* STREET COINS V23 */
+const APP_VERSION="V23";
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
@@ -107,9 +107,19 @@ function startGPS(){
     try{map.setHeading(stableHeading,{ease:0.12,deadzone:3})}catch(e){console.warn("Rotazione mappa non disponibile",e)}lastHeadingUpdate=stamp;
    }
   }
-  if(!window.player){window.player=L.marker([position.lat,position.lon],{icon:birdIcon(playerMoving),zIndexOffset:1000}).addTo(map);window.circle=L.circle([position.lat,position.lon],{radius:accuracy,color:"#287cff",weight:1,fillOpacity:.07}).addTo(map)}
-  else{window.player.setLatLng([position.lat,position.lon]);if(window.playerMovingState!==playerMoving){window.player.setIcon(birdIcon(playerMoving));window.playerMovingState=playerMoving}window.circle.setLatLng([position.lat,position.lon]).setRadius(accuracy)}
-  if(window.playerMovingState===undefined)window.playerMovingState=playerMoving;
+  if(!window.player||!map.hasLayer(window.player)){
+   window.player=L.marker([position.lat,position.lon],{icon:birdIcon(playerMoving),zIndexOffset:1000}).addTo(map);
+   window.playerMovingState=playerMoving;
+  }else{
+   window.player.setLatLng([position.lat,position.lon]);
+   if(window.playerMovingState!==playerMoving){window.player.setIcon(birdIcon(playerMoving));window.playerMovingState=playerMoving}
+  }
+  if(!window.circle||!map.hasLayer(window.circle)){
+   window.circle=L.circle([position.lat,position.lon],{radius:accuracy,color:"#287cff",weight:1,fillOpacity:.07}).addTo(map);
+  }else{
+   window.circle.setLatLng([position.lat,position.lon]);
+   window.circle.setRadius(accuracy);
+  }
   if(!hasInitialGpsView){map.setView([position.lat,position.lon],17,{animate:false});hasInitialGpsView=true}recenter.disabled=false;locate.disabled=false;locate.textContent="◎ GPS attivo";
   say(dist(position,TRENT0)<4100?(accuracy>70?"GPS impreciso: raccolta in pausa":(!user?"GPS attivo · accedi per raccogliere":"GPS attivo · monete fisse di Trento")):"Le 100 monete si trovano a Trento e dintorni");collectNearby();updateCount();
   }catch(err){console.error("Errore aggiornamento posizione",err);locate.disabled=false;locate.textContent="◎ GPS ricevuto";say("GPS ricevuto, ma errore nella mappa: "+(err.message||String(err)));}
