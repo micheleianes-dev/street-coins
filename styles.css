@@ -73,5 +73,5 @@ button:disabled { opacity:.45;cursor:not-allowed; }
 .fireworks{position:absolute;inset:0;pointer-events:none;overflow:hidden}
 .fireworks i{position:absolute;left:50%;top:22%;width:7px;height:7px;border-radius:50%;background:hsl(var(--h),100%,60%);animation:burst .9s ease-out forwards;animation-delay:calc(var(--i,0)*1ms);transform:translate(-50%,-50%)}
 .fireworks i:nth-child(3n){top:34%;left:22%}.fireworks i:nth-child(3n + 1){top:30%;left:78%}
-@keyframes burst{from{opacity:1;transform:translate(-50%,-50%) scale(.4)}to{opacity:0;transform:translate(calc(-50% + cos(var(--a))*var(--d)),calc(-50% + sin(var(--a))*var(--d))) scale(1.4)}}
+@keyframes burst{from{opacity:1;transform:translate(-50%,-50%) scale(.4)}to{opacity:0;transform:translate(calc(-50% + var(--x)),calc(-50% + var(--y))) scale(1.4)}}
 @keyframes winBounce{to{transform:translateY(-8px) rotate(8deg)}}
