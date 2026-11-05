@@ -1,100 +1,95 @@
-/* STREET COINS V10 - GPS obbligatorio, caricamento strade con timeout breve */
-const APP_VERSION="V10";
-const SEARCH_RADIUS_M=650, COIN_SPACING_M=50, PICKUP_BASE_M=12, BONUS_RADIUS_M=200, MAX_COINS=90;
-const CACHE_TTL_MS=8*60*1000;
-const OVERPASS_ENDPOINTS=[
- "https://overpass.private.coffee/api/interpreter",
- "https://ovp.dresel.systems/api/interpreter",
- "https://overpass-api.de/api/interpreter"
-];
+/* STREET COINS V11 */
+const APP_VERSION="V11";
+const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
+const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
+const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const TRENT0={lat:46.0679,lon:11.1211},SEED_RADIUS=3600;
+const ENDPOINTS=["https://overpass.private.coffee/api/interpreter","https://ovp.dresel.systems/api/interpreter","https://overpass-api.de/api/interpreter"];
 const map=L.map("map",{zoomControl:false,preferCanvas:true}).setView([0,0],2);
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,subdomains:"abc",attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,subdomains:"abc",attribution:'&copy; OpenStreetMap'}).addTo(map);
 L.control.zoom({position:"bottomright"}).addTo(map);
-const coinLayer=L.layerGroup().addTo(map);
-let playerMarker=null,playerCircle=null,watchId=null,currentPosition=null,coins=[],generating=false,lastGoodFix=null,lastRoadCenter=null;
-let total=Number(localStorage.getItem("streetCoinsTotal")||0);
-let bonusCharges=Number(localStorage.getItem("streetCoinsBonus")??1),bonusMode=false;
-document.getElementById("coinCount").textContent=total;
-const statusEl=document.getElementById("status"),locateBtn=document.getElementById("locateBtn");
-const refreshBtn=document.getElementById("refreshBtn"),bonusBtn=document.getElementById("bonusBtn"),toastEl=document.getElementById("toast");
-document.getElementById("appVersion").textContent=APP_VERSION;
-function setStatus(s){statusEl.textContent=s;}
-function showToast(s){toastEl.textContent=s;toastEl.classList.add("show");clearTimeout(showToast.timer);showToast.timer=setTimeout(()=>toastEl.classList.remove("show"),1700);}
-function updateBonusUI(){document.getElementById("bonusCount").textContent=bonusCharges;bonusBtn.disabled=!currentPosition||bonusCharges<=0;bonusBtn.classList.toggle("active",bonusMode);}
-function distanceMeters(a,b){const R=6371000,rad=Math.PI/180,dLat=(b.lat-a.lat)*rad,dLon=(b.lon-a.lon)*rad,x=Math.sin(dLat/2)**2+Math.cos(a.lat*rad)*Math.cos(b.lat*rad)*Math.sin(dLon/2)**2;return 2*R*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));}
-function interpolateRoadPoints(nodes,spacing){const pts=[];let carry=0;for(let i=1;i<nodes.length;i++){const a=nodes[i-1],b=nodes[i],len=distanceMeters(a,b);if(!Number.isFinite(len)||len===0)continue;let d=spacing-carry;while(d<len){const t=d/len;pts.push({lat:a.lat+(b.lat-a.lat)*t,lon:a.lon+(b.lon-a.lon)*t});d+=spacing;}carry=(carry+len)%spacing;}return pts;}
-function coinIcon(inRange=false){return L.divIcon({className:"",html:`<div class="coin-marker ${inRange?"in-range":""}"><span>★</span></div>`,iconSize:[42,42],iconAnchor:[21,21]});}
-function playerIcon(){return L.divIcon({className:"",html:'<div class="player-dot"></div>',iconSize:[22,22],iconAnchor:[11,11]});}
-function clearCoins(){coinLayer.clearLayers();coins=[];}
-function cacheKey(lat,lon){return `streetRoads:${lat.toFixed(3)}:${lon.toFixed(3)}`;}
-
-async function fetchRoads(lat,lon){
- const key=cacheKey(lat,lon);
- try{const cached=JSON.parse(localStorage.getItem(key)||"null");if(cached&&Date.now()-cached.time<CACHE_TTL_MS&&Array.isArray(cached.elements)&&cached.elements.length)return cached.elements;}catch(_){}
- const query=`[out:json][timeout:12];way(around:${SEARCH_RADIUS_M},${lat},${lon})["highway"~"^(residential|tertiary|secondary|primary|living_street|unclassified|road|service)$"];out geom;`;
- const controllers=OVERPASS_ENDPOINTS.map(()=>new AbortController());
- const tasks=OVERPASS_ENDPOINTS.map(async(endpoint,i)=>{
-  const timer=setTimeout(()=>controllers[i].abort(),12000);
-  try{
-   const response=await fetch(endpoint+"?data="+encodeURIComponent(query),{method:"GET",mode:"cors",signal:controllers[i].signal,cache:"no-store"});
-   if(!response.ok)throw new Error(`server ${response.status}`);
-   const data=await response.json(),elements=data.elements||[];
-   if(!elements.length)throw new Error("nessuna strada trovata");
-   return elements;
-  }finally{clearTimeout(timer);}
- });
- try{
-  const elements=await Promise.any(tasks);
-  controllers.forEach(c=>c.abort());
-  try{localStorage.setItem(key,JSON.stringify({time:Date.now(),elements}));}catch(_){}
-  return elements;
- }catch(err){
-  controllers.forEach(c=>c.abort());
-  throw new Error("I server delle mappe non rispondono. Controlla la connessione e premi ↻ per riprovare.");
+const layer=L.layerGroup().addTo(map),$=id=>document.getElementById(id);
+let user=null,admin=false,position=null,accuracy=999,watch=null,coins=[],collected=new Set(),bonusMode=false;
+$("appVersion").textContent=APP_VERSION;
+const status=$("status"),locate=$("locateBtn"),account=$("accountBtn"),bonus=$("bonusBtn"),refresh=$("refreshBtn");
+function say(s){status.textContent=s}
+function dist(a,b){const r=Math.PI/180,R=6371000,d1=(b.lat-a.lat)*r,d2=(b.lon-a.lon)*r,x=Math.sin(d1/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(d2/2)**2;return 2*R*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))}
+function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function updateCount(){$("coinCount").textContent=collected.size;$("bonusCount").textContent=1+Math.floor(collected.size/10);bonus.disabled=!user||!position}
+function icon(c){let inner=c.image_path?`<img src="${db.storage.from("coin-images").getPublicUrl(c.image_path).data.publicUrl}">`:"<span>★</span>";return L.divIcon({className:"",html:`<div class="coin-marker ${collected.has(c.id)?"collected":""}" style="background:${esc(c.color||"#ff6eae")}">${inner}</div>`,iconSize:[42,42],iconAnchor:[21,21]})}
+function draw(){layer.clearLayers();coins.forEach(c=>{c.marker=L.marker([c.latitude,c.longitude],{icon:icon(c)}).addTo(layer);c.marker.on("click",()=>{if(bonusMode)collect(c)})})}
+async function loadCoins(){let {data,error}=await db.from("coins").select("*").order("code");if(error)throw error;coins=data||[];draw();return coins.length}
+async function syncUser(){
+ let {data:{session}}=await db.auth.getSession();user=session?.user||null;admin=false;collected=new Set();
+ if(user){
+  const [a,c]=await Promise.all([db.from("admins").select("user_id").eq("user_id",user.id).maybeSingle(),db.from("coin_collections").select("coin_id").eq("user_id",user.id)]);
+  admin=!!a.data;if(c.data)collected=new Set(c.data.map(x=>x.coin_id));
  }
+ account.textContent=user?(admin?"Admin":"Account"):"Accedi";updateCount();draw();
 }
-function drawCoins(points){clearCoins();points.forEach((p,i)=>{const coin={id:`${p.lat.toFixed(6)}:${p.lon.toFixed(6)}:${i}`,lat:p.lat,lon:p.lon,marker:null};coin.marker=L.marker([p.lat,p.lon],{icon:coinIcon(),keyboard:false}).addTo(coinLayer);coin.marker.on("click",()=>{if(bonusMode)useBonusOn(coin);});coins.push(coin);});}
-async function generateCoins(lat,lon){
- if(generating)return;
- generating=true;refreshBtn.disabled=true;setStatus("Cerco le strade… (massimo 12 secondi)");
- try{
-  const ways=await fetchRoads(lat,lon);let candidates=[];
-  for(const way of ways)if(way.geometry&&way.geometry.length>=2)candidates.push(...interpolateRoadPoints(way.geometry.map(p=>({lat:p.lat,lon:p.lon})),COIN_SPACING_M));
-  candidates=candidates.filter(p=>distanceMeters({lat,lon},p)<SEARCH_RADIUS_M*.97);
-  for(let i=candidates.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[candidates[i],candidates[j]]=[candidates[j],candidates[i]];}
-  const chosen=[];for(const p of candidates){if(chosen.every(q=>distanceMeters(p,q)>25))chosen.push(p);if(chosen.length>=MAX_COINS)break;}
-  if(!chosen.length)throw new Error("Non ho trovato strade adatte vicino alla posizione GPS.");
-  drawCoins(chosen);lastRoadCenter={lat,lon};setStatus(`${coins.length} monete rosa posizionate sulle strade`);
- }catch(err){clearCoins();setStatus(`${err.message} Premi ↻ per riprovare.`);}
- finally{generating=false;refreshBtn.disabled=!currentPosition;}
+async function collect(c){
+ if(!user){$("authPanel").classList.remove("hidden");$("authMsg").textContent="Accedi o crea un account per raccogliere.";return}
+ if(collected.has(c.id))return;
+ let {error}=await db.from("coin_collections").insert({user_id:user.id,coin_id:c.id});
+ if(error&&error.code!=="23505"){say("Raccolta non salvata: "+error.message);return}
+ collected.add(c.id);c.marker?.setIcon(icon(c));updateCount();say("Moneta raccolta!"); 
 }
-function collectCoin(coin,source="gps"){
- if(!coin||!coins.includes(coin))return;coinLayer.removeLayer(coin.marker);coins=coins.filter(c=>c.id!==coin.id);total++;localStorage.setItem("streetCoinsTotal",String(total));document.getElementById("coinCount").textContent=total;
- if(source==="gps"&&total%10===0){bonusCharges++;localStorage.setItem("streetCoinsBonus",String(bonusCharges));updateBonusUI();showToast("+1 MONETA · BONUS RICARICATO!");}else showToast(source==="bonus"?"BONUS! +1 MONETA":"+1 MONETA!");
- if(!coins.length)setStatus("Zona completata! Premi ↻ per cercare altre monete.");
-}
-function collectNearby(){if(!currentPosition)return;const accuracy=lastGoodFix?.accuracy??999;if(accuracy>35)return;const radius=Math.max(PICKUP_BASE_M,Math.min(18,accuracy*.45));for(const coin of [...coins])if(distanceMeters(currentPosition,coin)<=radius)collectCoin(coin,"gps");}
-function updatePlayer(lat,lon,accuracy){currentPosition={lat,lon};if(!playerMarker){playerMarker=L.marker([lat,lon],{icon:playerIcon(),zIndexOffset:1000,keyboard:false}).addTo(map);playerCircle=L.circle([lat,lon],{radius:Math.max(accuracy||0,8),color:"#287cff",weight:1,opacity:.45,fillColor:"#287cff",fillOpacity:.08}).addTo(map);}else{playerMarker.setLatLng([lat,lon]);playerCircle.setLatLng([lat,lon]);playerCircle.setRadius(Math.max(accuracy||0,8));}map.setView([lat,lon],17);collectNearby();updateBonusUI();}
-function onGPS(pos){
- const {latitude,longitude,accuracy}=pos.coords;if(!Number.isFinite(latitude)||!Number.isFinite(longitude))return;
- const acc=Number.isFinite(accuracy)?accuracy:999;lastGoodFix={lat:latitude,lon:longitude,accuracy:acc};updatePlayer(latitude,longitude,acc);
- if(!lastRoadCenter||distanceMeters({lat:latitude,lon:longitude},lastRoadCenter)>220||!coins.length)generateCoins(latitude,longitude);
- else setStatus(acc>35?`GPS impreciso (±${Math.round(acc)} m): raccolta automatica in pausa`:`GPS attivo · precisione ±${Math.round(acc)} m`);
-}
+function collectNearby(){if(!position||!user||accuracy>35)return;for(const c of coins)if(!collected.has(c.id)&&dist(position,{lat:c.latitude,lon:c.longitude})<=Math.max(12,Math.min(18,accuracy*.45)))collect(c)}
 function startGPS(){
- if(!navigator.geolocation){setStatus("GPS non disponibile: Street Coins non può funzionare su questo dispositivo.");return;}
- if(watchId!==null)return;
- locateBtn.disabled=true;locateBtn.textContent="◎ Ricerca GPS…";setStatus("Attendo la posizione GPS…");
- watchId=navigator.geolocation.watchPosition(pos=>{
-  locateBtn.disabled=false;locateBtn.textContent="◎ GPS attivo";onGPS(pos);
- },err=>{
-  const messages={1:"Permesso GPS negato. Consenti la posizione nelle impostazioni del browser.",2:"Posizione GPS non disponibile. Street Coins non può funzionare senza GPS.",3:"Il GPS non ha risposto entro 20 secondi. Riprova all'aperto."};
-  setStatus(messages[err.code]||"GPS non disponibile. Street Coins richiede la posizione.");
-  locateBtn.disabled=false;locateBtn.textContent="◎ Riprova GPS";if(watchId!==null)navigator.geolocation.clearWatch(watchId);watchId=null;
- },{enableHighAccuracy:true,maximumAge:10000,timeout:20000});
+ if(!navigator.geolocation){say("GPS non disponibile.");return}if(watch!==null)return;
+ locate.disabled=true;locate.textContent="◎ Ricerca GPS…";say("Attendo la posizione GPS…");
+ watch=navigator.geolocation.watchPosition(p=>{
+  position={lat:p.coords.latitude,lon:p.coords.longitude};accuracy=p.coords.accuracy||999;
+  if(!window.player){window.player=L.marker([position.lat,position.lon],{icon:L.divIcon({className:"",html:'<div class="player-dot"></div>',iconSize:[22,22],iconAnchor:[11,11]})}).addTo(map);window.circle=L.circle([position.lat,position.lon],{radius:accuracy,color:"#287cff",weight:1,fillOpacity:.07}).addTo(map)}
+  else{window.player.setLatLng([position.lat,position.lon]);window.circle.setLatLng([position.lat,position.lon]).setRadius(accuracy)}
+  map.setView([position.lat,position.lon],16);locate.disabled=false;locate.textContent="◎ GPS attivo";
+  say(dist(position,TRENT0)<4100?(accuracy>35?"GPS impreciso: raccolta in pausa":"GPS attivo · monete fisse di Trento"):"Le 100 monete si trovano a Trento e dintorni");collectNearby();updateCount();
+ },e=>{say(e.code===1?"Permesso GPS negato.":e.code===2?"Posizione GPS non disponibile.":"GPS lento: riprova all'aperto.");locate.disabled=false;locate.textContent="◎ Riprova GPS";if(watch!==null)navigator.geolocation.clearWatch(watch);watch=null},{enableHighAccuracy:true,maximumAge:10000,timeout:20000})
 }
-function refreshCoins(){bonusMode=false;bonusBtn.classList.remove("active");if(!currentPosition){setStatus("Prima attiva il GPS: senza posizione GPS non posso cercare le strade.");return;}generateCoins(currentPosition.lat,currentPosition.lon);}
-function useBonusOn(coin){if(!bonusMode||bonusCharges<=0||!currentPosition)return;if(lastGoodFix&&lastGoodFix.accuracy>35){showToast("GPS troppo impreciso per il bonus");return;}if(distanceMeters(currentPosition,coin)>BONUS_RADIUS_M){showToast("Questa moneta è oltre 200 m");return;}bonusCharges--;localStorage.setItem("streetCoinsBonus",String(bonusCharges));bonusMode=false;bonusBtn.classList.remove("active");collectCoin(coin,"bonus");updateBonusUI();}
-function toggleBonus(){if(!currentPosition){setStatus("Attiva prima il GPS per usare il bonus.");return;}if(lastGoodFix&&lastGoodFix.accuracy>35){setStatus("GPS troppo impreciso per usare il bonus.");return;}if(bonusCharges<=0){setStatus("Nessun bonus disponibile: raccogli 10 monete.");return;}if(bonusMode){bonusMode=false;bonusBtn.classList.remove("active");setStatus("Selezione bonus annullata.");return;}const inRange=coins.filter(c=>distanceMeters(currentPosition,c)<=BONUS_RADIUS_M);if(!inRange.length){showToast("Nessuna moneta entro 200 metri");return;}bonusMode=true;bonusBtn.classList.add("active");inRange.forEach(c=>c.marker.setIcon(coinIcon(true)));setStatus("Bonus attivo: tocca una moneta rosa.");showToast("SCEGLI UNA MONETA");}
-bonusBtn.addEventListener("click",toggleBonus);refreshBtn.addEventListener("click",refreshCoins);locateBtn.addEventListener("click",startGPS);
-refreshBtn.disabled=true;updateBonusUI();setStatus("Attiva il GPS per iniziare: senza posizione GPS il gioco non funziona.");
+async function fetchTrentoWays(){
+ const q=`[out:json][timeout:20];way(around:${SEED_RADIUS},${TRENT0.lat},${TRENT0.lon})["highway"~"^(residential|tertiary|secondary|primary|living_street|unclassified|road|service)$"];out geom;`;
+ const cs=ENDPOINTS.map(()=>new AbortController());
+ try{return await Promise.any(ENDPOINTS.map(async(url,i)=>{let t=setTimeout(()=>cs[i].abort(),22000);try{let r=await fetch(url+"?data="+encodeURIComponent(q),{signal:cs[i].signal});if(!r.ok)throw Error("HTTP "+r.status);let j=await r.json();if(!j.elements?.length)throw Error("Nessuna strada trovata");return j.elements}finally{clearTimeout(t)}}))}
+ finally{cs.forEach(c=>c.abort())}
+}
+function interpolate(nodes,spacing){let out=[],carry=0;for(let i=1;i<nodes.length;i++){let a=nodes[i-1],b=nodes[i],d=dist({lat:a.lat,lon:a.lon},{lat:b.lat,lon:b.lon});if(!d)continue;for(let x=spacing-carry;x<d;x+=spacing){let t=x/d;out.push({latitude:a.lat+(b.lat-a.lat)*t,longitude:a.lon+(b.lon-a.lon)*t})}carry=(carry+d)%spacing}return out}
+async function seed(){
+ $("seedCoins").disabled=true;$("adminMsg").textContent="Controllo e preparo le posizioni sulle strade di Trento…";
+ try{
+  let {count,error}=await db.from("coins").select("*",{count:"exact",head:true});if(error)throw error;if(count){$("adminMsg").textContent=`Esistono già ${count} monete. Non ne creo altre.`;return}
+  let ways=await fetchTrentoWays(),pts=[];ways.forEach(w=>{if(w.geometry?.length>1)pts.push(...interpolate(w.geometry,65))});
+  pts=pts.filter(p=>dist(TRENT0,{lat:p.latitude,lon:p.longitude})<SEED_RADIUS*.98);
+  for(let i=pts.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[pts[i],pts[j]]=[pts[j],pts[i]]}
+  let chosen=[];for(let p of pts){if(chosen.every(q=>dist({lat:p.latitude,lon:p.longitude},{lat:q.latitude,lon:q.longitude})>45))chosen.push(p);if(chosen.length===100)break}
+  if(chosen.length!==100)throw Error(`Trovate solo ${chosen.length} posizioni. Riprova.`);
+  let rows=chosen.map((p,i)=>({code:`TR-${String(i+1).padStart(3,"0")}`,latitude:p.latitude,longitude:p.longitude,color:"#ff6eae"}));
+  let ins=await db.from("coins").insert(rows);if(ins.error)throw ins.error;
+  await loadCoins();$("adminMsg").textContent="Create 100 monete fisse a Trento. Ora le coordinate sono salvate nel database.";
+ }catch(e){$("adminMsg").textContent=e.message||"Errore nella creazione delle monete"}
+ finally{$("seedCoins").disabled=false}
+}
+async function showAdmin(){
+ $("adminPanel").classList.remove("hidden");$("adminMsg").textContent=user.email;
+ let {data,error}=await db.from("coins").select("*").order("code");if(error){$("coinList").textContent=error.message;return}
+ $("coinList").innerHTML="";
+ data.forEach(c=>{
+  let d=document.createElement("div");d.className="coin-admin-row";
+  d.innerHTML=`<b>${esc(c.code)}</b><label>Lat <input type="number" step=".000001" value="${c.latitude}" data-lat></label><label>Lon <input type="number" step=".000001" value="${c.longitude}" data-lon></label><label>Colore <input type="color" value="${esc(c.color||"#ff6eae")}" data-color></label><label>Immagine <input type="file" accept="image/png,image/jpeg,image/webp" data-file></label><button class="primary" data-save>Salva</button>`;
+  $("coinList").appendChild(d);
+  d.querySelector("[data-save]").onclick=async()=>{
+   let patch={latitude:Number(d.querySelector("[data-lat]").value),longitude:Number(d.querySelector("[data-lon]").value),color:d.querySelector("[data-color]").value};
+   let f=d.querySelector("[data-file]").files[0];
+   if(f){if(f.size>1024*1024){$("adminMsg").textContent="Immagine massimo 1 MB";return}let path=`${c.code}-${Date.now()}-${f.name.replace(/[^a-zA-Z0-9._-]/g,"")}`;let up=await db.storage.from("coin-images").upload(path,f);if(up.error){$("adminMsg").textContent=up.error.message;return}patch.image_path=path}
+   let u=await db.from("coins").update(patch).eq("id",c.id);if(u.error){$("adminMsg").textContent=u.error.message;return}
+   await loadCoins();$("adminMsg").textContent=`${c.code} aggiornata`;showAdmin()
+  }
+ })
+}
+account.onclick=async()=>{if(!user){$("authPanel").classList.remove("hidden");return}if(admin){showAdmin();return}if(confirm("Vuoi uscire dall'account?")){await db.auth.signOut();await syncUser()}}
+$("authClose").onclick=()=>$("authPanel").classList.add("hidden");$("adminClose").onclick=()=>$("adminPanel").classList.add("hidden");
+$("login").onclick=async()=>{let r=await db.auth.signInWithPassword({email:$("email").value.trim(),password:$("password").value});$("authMsg").textContent=r.error?.message||"Accesso effettuato";if(!r.error){$("authPanel").classList.add("hidden");await syncUser();if(admin)showAdmin()}}
+$("signup").onclick=async()=>{let r=await db.auth.signUp({email:$("email").value.trim(),password:$("password").value});$("authMsg").textContent=r.error?.message||"Registrazione avviata: controlla la posta per confermare l'email."}
+$("seedCoins").onclick=seed;locate.onclick=startGPS;refresh.onclick=()=>loadCoins().then(n=>say(`${n} monete caricate`)).catch(e=>say(e.message));
+bonus.onclick=()=>{if(!user){$("authPanel").classList.remove("hidden");return}bonusMode=!bonusMode;bonus.classList.toggle("active",bonusMode);say(bonusMode?"Bonus attivo: tocca una moneta entro 200 metri.":"Bonus disattivato")};
+db.auth.onAuthStateChange(()=>setTimeout(syncUser,0));
+(async()=>{try{await syncUser();let n=await loadCoins();say(n?`${n} monete fisse caricate. Accedi e attiva il GPS.`:"Database pronto: accedi come amministratore e crea le 100 monete.");}catch(e){say("Errore database: "+e.message)}})();
