@@ -1,5 +1,5 @@
-/* STREET COINS V11 */
-const APP_VERSION="V11";
+/* STREET COINS V12 */
+const APP_VERSION="V12";
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
@@ -9,6 +9,7 @@ const map=L.map("map",{zoomControl:false,preferCanvas:true}).setView([0,0],2);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,subdomains:"abc",attribution:'&copy; OpenStreetMap'}).addTo(map);
 L.control.zoom({position:"bottomright"}).addTo(map);
 const layer=L.layerGroup().addTo(map),$=id=>document.getElementById(id);
+map.on("click",e=>{const lat=e.latlng.lat,lon=e.latlng.lng;L.popup().setLatLng(e.latlng).setContent(`<div class="coord-popup"><b>Punto selezionato</b><br>Latitudine: ${lat.toFixed(6)}<br>Longitudine: ${lon.toFixed(6)}</div>`).openOn(map)});
 let user=null,admin=false,position=null,accuracy=999,watch=null,coins=[],collected=new Set(),bonusMode=false;
 $("appVersion").textContent=APP_VERSION;
 const status=$("status"),locate=$("locateBtn"),account=$("accountBtn"),bonus=$("bonusBtn"),refresh=$("refreshBtn");
@@ -17,7 +18,7 @@ function dist(a,b){const r=Math.PI/180,R=6371000,d1=(b.lat-a.lat)*r,d2=(b.lon-a.
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function updateCount(){$("coinCount").textContent=collected.size;$("bonusCount").textContent=1+Math.floor(collected.size/10);bonus.disabled=!user||!position}
 function icon(c){let inner=c.image_path?`<img src="${db.storage.from("coin-images").getPublicUrl(c.image_path).data.publicUrl}">`:"<span>★</span>";return L.divIcon({className:"",html:`<div class="coin-marker ${collected.has(c.id)?"collected":""}" style="background:${esc(c.color||"#ff6eae")}">${inner}</div>`,iconSize:[42,42],iconAnchor:[21,21]})}
-function draw(){layer.clearLayers();coins.forEach(c=>{c.marker=L.marker([c.latitude,c.longitude],{icon:icon(c)}).addTo(layer);c.marker.on("click",()=>{if(bonusMode)collect(c)})})}
+function draw(){layer.clearLayers();coins.forEach(c=>{c.marker=L.marker([c.latitude,c.longitude],{icon:icon(c)}).addTo(layer);c.marker.bindPopup(`<div class="coin-popup"><b>${esc(c.name||c.code)}</b><p>${esc(c.description||"Nessuna descrizione disponibile.")}</p>${collected.has(c.id)?'<small>Già raccolta da te</small>':""}</div>`);c.marker.on("click",()=>{if(bonusMode)collect(c)})})}
 async function loadCoins(){let {data,error}=await db.from("coins").select("*").order("code");if(error)throw error;coins=data||[];draw();return coins.length}
 async function syncUser(){
  let {data:{session}}=await db.auth.getSession();user=session?.user||null;admin=false;collected=new Set();
@@ -74,10 +75,10 @@ async function showAdmin(){
  $("coinList").innerHTML="";
  data.forEach(c=>{
   let d=document.createElement("div");d.className="coin-admin-row";
-  d.innerHTML=`<b>${esc(c.code)}</b><label>Lat <input type="number" step=".000001" value="${c.latitude}" data-lat></label><label>Lon <input type="number" step=".000001" value="${c.longitude}" data-lon></label><label>Colore <input type="color" value="${esc(c.color||"#ff6eae")}" data-color></label><label>Immagine <input type="file" accept="image/png,image/jpeg,image/webp" data-file></label><button class="primary" data-save>Salva</button>`;
+  d.innerHTML=`<b>${esc(c.code)}</b><label>Nome <input type="text" maxlength="80" value="${esc(c.name||"")}" data-name placeholder="Nome della moneta"></label><label>Descrizione <textarea maxlength="500" data-description placeholder="Descrizione della moneta">${esc(c.description||"")}</textarea></label><label>Lat <input type="number" step=".000001" value="${c.latitude}" data-lat></label><label>Lon <input type="number" step=".000001" value="${c.longitude}" data-lon></label><label>Colore <input type="color" value="${esc(c.color||"#ff6eae")}" data-color></label><label>Immagine <input type="file" accept="image/png,image/jpeg,image/webp" data-file></label><button class="primary" data-save>Salva</button>`;
   $("coinList").appendChild(d);
   d.querySelector("[data-save]").onclick=async()=>{
-   let patch={latitude:Number(d.querySelector("[data-lat]").value),longitude:Number(d.querySelector("[data-lon]").value),color:d.querySelector("[data-color]").value};
+   let patch={name:d.querySelector("[data-name]").value.trim(),description:d.querySelector("[data-description]").value.trim(),latitude:Number(d.querySelector("[data-lat]").value),longitude:Number(d.querySelector("[data-lon]").value),color:d.querySelector("[data-color]").value};
    let f=d.querySelector("[data-file]").files[0];
    if(f){if(f.size>1024*1024){$("adminMsg").textContent="Immagine massimo 1 MB";return}let path=`${c.code}-${Date.now()}-${f.name.replace(/[^a-zA-Z0-9._-]/g,"")}`;let up=await db.storage.from("coin-images").upload(path,f);if(up.error){$("adminMsg").textContent=up.error.message;return}patch.image_path=path}
    let u=await db.from("coins").update(patch).eq("id",c.id);if(u.error){$("adminMsg").textContent=u.error.message;return}
