@@ -1,11 +1,11 @@
-/* STREET COINS V23 */
-const APP_VERSION="V23";
+/* STREET COINS V24 */
+const APP_VERSION="V24";
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const TRENT0={lat:46.0679,lon:11.1211},SEED_RADIUS=3600;
 const ENDPOINTS=["https://overpass.private.coffee/api/interpreter","https://ovp.dresel.systems/api/interpreter","https://overpass-api.de/api/interpreter"];
-const map=L.map("map",{zoomControl:false,preferCanvas:true,rotate:true,dragRotate:false,touchRotate:false,zoomSnap:0.5,zoomDelta:0.5,minZoom:17,maxZoom:20}).setView([0,0],2);
+const map=L.map("map",{zoomControl:false,preferCanvas:true,zoomSnap:0.5,zoomDelta:0.5,minZoom:17,maxZoom:20}).setView([0,0],2);
 L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_52vs_1_1db3e835804d22b5902148c7",{maxZoom:20,subdomains:"abcd",attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'}).addTo(map);
 L.control.zoom({position:"bottomright"}).addTo(map);
 const layer=L.layerGroup().addTo(map),$=id=>document.getElementById(id);
@@ -100,13 +100,7 @@ function startGPS(){
   const gpsHeading=Number.isFinite(p.coords.heading)&&speed>=0.7?p.coords.heading:null;
   const movementHeading=gpsHeading!==null?gpsHeading:derivedHeading;
   lastGpsFix={position:nextPosition,time:stamp,accuracy:newAccuracy};position=nextPosition;accuracy=newAccuracy;say("Posizione GPS ricevuta: aggiorno la mappa…");
-  if(movementHeading!==null&&typeof map.setHeading==="function"){
-   const delta=stableHeading===null?180:Math.abs(((movementHeading-stableHeading+540)%360)-180);
-   if(stableHeading===null|| (delta>=5&&stamp-lastHeadingUpdate>=700)){
-    stableHeading=stableHeading===null?movementHeading:(stableHeading+(((movementHeading-stableHeading+540)%360)-180)*0.4+360)%360;
-    try{map.setHeading(stableHeading,{ease:0.12,deadzone:3})}catch(e){console.warn("Rotazione mappa non disponibile",e)}lastHeadingUpdate=stamp;
-   }
-  }
+  if(movementHeading!==null){stableHeading=movementHeading;lastHeadingUpdate=stamp;}
   if(!window.player||!map.hasLayer(window.player)){
    window.player=L.marker([position.lat,position.lon],{icon:birdIcon(playerMoving),zIndexOffset:1000}).addTo(map);
    window.playerMovingState=playerMoving;
@@ -169,7 +163,7 @@ account.onclick=async()=>{if(!user){$("authPanel").classList.remove("hidden");re
 $("authClose").onclick=()=>$("authPanel").classList.add("hidden");$("adminClose").onclick=()=>$("adminPanel").classList.add("hidden");$("adminBack").onclick=()=>$("adminPanel").classList.add("hidden");$("victoryNext").onclick=()=>$("victoryPanel").classList.add("hidden");
 $("login").onclick=async()=>{let r=await db.auth.signInWithPassword({email:$("email").value.trim(),password:$("password").value});$("authMsg").textContent=r.error?.message||"Accesso effettuato";if(!r.error){$("authPanel").classList.add("hidden");await syncUser();if(admin)showAdmin()}}
 $("signup").onclick=async()=>{let r=await db.auth.signUp({email:$("email").value.trim(),password:$("password").value});$("authMsg").textContent=r.error?.message||"Registrazione avviata: controlla la posta per confermare l'email."}
-$("seedCoins").onclick=seed;locate.onclick=startGPS;recenter.onclick=()=>{if(position){if(typeof map.stopHeadingUp==="function")map.stopHeadingUp();map.setView([position.lat,position.lon],map.getZoom(),{animate:false});if(stableHeading!==null&&typeof map.setHeading==="function"){try{map.setHeading(stableHeading,{ease:.08,deadzone:8})}catch(e){console.warn("Rotazione mappa non disponibile",e)}}}};refresh.onclick=()=>loadCoins().then(n=>say(`${n} monete caricate`)).catch(e=>say(e.message));
+$("seedCoins").onclick=seed;locate.onclick=startGPS;recenter.onclick=()=>{if(position){map.setView([position.lat,position.lon],map.getZoom(),{animate:false})}};refresh.onclick=()=>loadCoins().then(n=>say(`${n} monete caricate`)).catch(e=>say(e.message));
 bonus.onclick=()=>{if(!user){$("authPanel").classList.remove("hidden");return}bonusMode=!bonusMode;bonus.classList.toggle("active",bonusMode);say(bonusMode?"Bonus attivo: tocca una moneta entro 200 metri.":"Bonus disattivato")};
 db.auth.onAuthStateChange(()=>setTimeout(syncUser,0));
 (async()=>{try{await syncUser();let n=await loadCoins();say(n?`${n} monete fisse caricate. Accedi e attiva il GPS.`:"Database pronto: accedi come amministratore e crea le 100 monete.");}catch(e){say("Errore database: "+e.message)}})();
