@@ -1,16 +1,18 @@
-/* Street Coins v2
+/* Street Coins v5
    Basemap CARTO Voyager senza etichette, dati stradali OpenStreetMap via Overpass.
 */
 const DEFAULT_VIEW = [45.4642, 9.19];
 const SEARCH_RADIUS_M = 520;
-const COIN_SPACING_M = 145;
+const COIN_SPACING_M = 50;
 const PICKUP_BASE_M = 12;
 const BONUS_RADIUS_M = 200;
-const MAX_COINS = 28;
+const MAX_COINS = 85;
 const CACHE_TTL_MS = 8 * 60 * 1000;
 const OVERPASS_ENDPOINTS = [
   "https://overpass.kumi.systems/api/interpreter",
-  "https://overpass-api.de/api/interpreter"
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.private.coffee/api/interpreter",
+  "https://overpass.nchc.org.tw/api/interpreter"
 ];
 
 const map = L.map("map", {zoomControl:false, preferCanvas:true}).setView(DEFAULT_VIEW, 16);
@@ -56,7 +58,12 @@ function interpolateRoadPoints(nodes,spacing){
   return pts;
 }
 function coinIcon(inRange=false){
-  return L.divIcon({className:"",html:`<div class="coin-marker ${inRange?"in-range":""}">¢</div>`,iconSize:[29,29],iconAnchor:[14,14]});
+  return L.divIcon({
+    className:"",
+    html:`<div class="coin-marker ${inRange?"in-range":""}"><span>★</span></div>`,
+    iconSize:[42,42],
+    iconAnchor:[21,21]
+  });
 }
 function playerIcon(){return L.divIcon({className:"",html:'<div class="player-dot"></div>',iconSize:[20,20],iconAnchor:[10,10]});}
 function clearCoins(){coinLayer.clearLayers();coins=[];}
@@ -122,7 +129,7 @@ async function generateCoins(lat,lon,force=false){
     for(let i=candidates.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[candidates[i],candidates[j]]=[candidates[j],candidates[i]];}
     const chosen=[];
     for(const p of candidates){
-      if(chosen.every(q=>distanceMeters(p,q)>85))chosen.push(p);
+      if(chosen.every(q=>distanceMeters(p,q)>28))chosen.push(p);
       if(chosen.length>=MAX_COINS)break;
     }
     drawCoins(chosen);lastRoadCenter={lat,lon};lastGeneratedAt=Date.now();lastFailedAt=null;
