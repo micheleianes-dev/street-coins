@@ -1,13 +1,13 @@
-STREET COINS V5
+STREET COINS V6
 
 Novità:
-- Monete rosa molto più grandi e visibili, con stile cartoon.
-- Interfaccia e pulsanti ridisegnati in stile cartoon, con bordi marcati e colori vivaci.
-- Distribuzione più fitta: circa una moneta ogni 50 metri lungo le strade.
-- Fino a 85 monete per area di gioco.
-- Maggiore distanza minima tra monete ridotta per rispettare la nuova densità.
-- Quattro endpoint Overpass in sequenza per migliorare il recupero delle strade.
+- Le monete vengono generate subito all'apertura, senza aspettare il GPS.
+- Posizione iniziale impostata su Trento come punto di partenza modificabile.
+- Se il GPS non è disponibile, il pulsante aggiorna genera monete intorno al centro della mappa.
+- Accettati anche fix GPS indoor imprecisi: il segnalino può essere approssimativo.
+- La raccolta automatica viene sospesa quando la precisione GPS supera 35 metri.
+- Etichetta V6 sempre visibile in basso a sinistra.
 
-Pubblicazione:
-Caricare tutti i file nella cartella principale del repository GitHub, sostituendo quelli esistenti.
-Dopo il commit, attendere la pubblicazione GitHub Pages e aggiornare la pagina.
+Uso indoor:
+Spostare la mappa sulla propria zona e premere il pulsante ↻ per caricare le monete.
+Il GPS indoor può essere impreciso o non disponibile; in tal caso la mappa manuale consente comunque di vedere le monete.

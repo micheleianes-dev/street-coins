@@ -1,7 +1,7 @@
-/* Street Coins v5
+/* Street Coins v6
    Basemap CARTO Voyager senza etichette, dati stradali OpenStreetMap via Overpass.
 */
-const DEFAULT_VIEW = [45.4642, 9.19];
+const DEFAULT_VIEW = [46.0679, 11.1211]; // Trento: posizione iniziale modificabile sulla mappa
 const SEARCH_RADIUS_M = 520;
 const COIN_SPACING_M = 50;
 const PICKUP_BASE_M = 12;
@@ -153,8 +153,9 @@ function collectCoin(coin,source="gps"){
 }
 function collectNearby(){
   if(!currentPosition)return;
-  const accuracy=lastGoodFix?.accuracy??20;
-  // La tolleranza aumenta moderatamente con l'incertezza GPS, con un limite prudente.
+  const accuracy=lastGoodFix?.accuracy??999;
+  // Non raccogliere automaticamente se il GPS è impreciso: le monete restano visibili.
+  if(accuracy>35)return;
   const radius=Math.max(PICKUP_BASE_M,Math.min(18,accuracy*.45));
   for(const coin of [...coins]){
     if(distanceMeters(currentPosition,coin)<=radius)collectCoin(coin,"gps");
@@ -173,20 +174,20 @@ function updatePlayer(lat,lon,accuracy){
 }
 function onGPS(pos){
   const {latitude,longitude,accuracy}=pos.coords;
-  // Evita fix molto imprecisi che farebbero saltare il segnalino.
-  if(!Number.isFinite(accuracy)||accuracy>80){
-    setStatus(`Segnale GPS debole (±${Math.round(accuracy||0)} m). Spostati all'aperto…`);
-    return;
-  }
-  if(lastGoodFix&&accuracy>lastGoodFix.accuracy*2.8&&accuracy>35)return;
-  lastGoodFix={lat:latitude,lon:longitude,accuracy};
-  updatePlayer(latitude,longitude,accuracy);
+  // Accetta anche fix indoor imprecisi: servono per centrare approssimativamente la mappa.
+  if(!Number.isFinite(latitude)||!Number.isFinite(longitude))return;
+  const safeAccuracy=Number.isFinite(accuracy)?accuracy:999;
+  lastGoodFix={lat:latitude,lon:longitude,accuracy:safeAccuracy};
+  updatePlayer(latitude,longitude,safeAccuracy);
   if(!coins.length&&!generating){
     if(!lastFailedAt||Date.now()-lastFailedAt>=45000)generateCoins(latitude,longitude);
   }else if(lastRoadCenter&&distanceMeters({lat:latitude,lon:longitude},lastRoadCenter)>320&&!generating){
     generateCoins(latitude,longitude,true);
-  }else if(coins.length){
-    setStatus(`GPS attivo · precisione ±${Math.round(accuracy)} m`);
+  }
+  if(safeAccuracy>35){
+    setStatus(`Monete visibili · GPS approssimativo (±${Math.round(safeAccuracy)} m). Raccolta automatica in pausa.`);
+  }else{
+    setStatus(`GPS attivo · precisione ±${Math.round(safeAccuracy)} m`);
   }
 }
 function startGPS(){
@@ -219,14 +220,17 @@ function toggleBonus(){
 }
 function refreshCoins(){
   lastFailedAt=null;
-  if(!currentPosition){setStatus("Attiva prima il GPS.");return;}
   bonusMode=false;bonusBtn.classList.remove("active");
-  generateCoins(currentPosition.lat,currentPosition.lon,true);
+  // Se il GPS non è disponibile, usa il centro attuale della mappa.
+  const center=currentPosition||map.getCenter();
+  generateCoins(center.lat,center.lng,true);
 }
 bonusBtn.addEventListener("click",toggleBonus);
 refreshBtn.addEventListener("click",refreshCoins);
 locateBtn.addEventListener("click",startGPS);
 updateBonusUI();
+// Mostra subito le monete nella zona iniziale: il GPS non è necessario per visualizzarle.
+generateCoins(DEFAULT_VIEW[0],DEFAULT_VIEW[1]);
 if("serviceWorker"in navigator&&location.protocol.startsWith("http")){
   addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(console.warn));
 }
