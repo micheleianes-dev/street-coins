@@ -75,3 +75,35 @@ button:disabled { opacity:.45;cursor:not-allowed; }
 .fireworks i:nth-child(3n){top:34%;left:22%}.fireworks i:nth-child(3n + 1){top:30%;left:78%}
 @keyframes burst{from{opacity:1;transform:translate(-50%,-50%) scale(.4)}to{opacity:0;transform:translate(calc(-50% + var(--x)),calc(-50% + var(--y))) scale(1.4)}}
 @keyframes winBounce{to{transform:translateY(-8px) rotate(8deg)}}
+
+
+/* STREET COINS V15 — personaggio e monete animate */
+.player-bird-icon{background:transparent!important;border:0!important}
+.bird-wrap{width:58px;height:58px;filter:drop-shadow(0 3px 2px #38243a55);transform-origin:50% 75%}
+.bird-body,.bird-belly,.bird-wing{transform-box:fill-box}
+.bird-wing{transform-origin:25% 80%}
+.is-perched .bird-wrap{animation:birdPerch 2.8s ease-in-out infinite}
+.is-perched .bird-wing{animation:birdWingRest 2.8s ease-in-out infinite}
+.is-moving .bird-wrap{animation:birdFlyBob .42s ease-in-out infinite alternate}
+.is-moving .bird-wing{animation:birdFlap .22s ease-in-out infinite alternate}
+.is-moving .bird-branch,.is-moving .bird-legs{opacity:0}
+.bird-branch,.bird-legs{transition:opacity .18s}
+@keyframes birdPerch{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-2px) rotate(1deg)}}
+@keyframes birdWingRest{0%,100%{transform:rotate(0)}50%{transform:rotate(-5deg)}}
+@keyframes birdFlyBob{from{transform:translateY(1px) rotate(-5deg)}to{transform:translateY(-4px) rotate(4deg)}}
+@keyframes birdFlap{from{transform:rotate(-28deg) scaleY(.78)}to{transform:rotate(30deg) scaleY(1.08)}}
+
+.coin-marker{position:relative;overflow:visible;isolation:isolate;animation:coinFloat 2.4s ease-in-out infinite}
+.coin-marker::before{content:"";position:absolute;z-index:-1;inset:-5px;border-radius:50%;border:2px solid #ff8dc2;opacity:0;animation:coinGlow 2.4s ease-out infinite}
+.coin-marker img,.coin-marker span{position:relative;z-index:1}
+.coin-marker img{border-radius:50%}
+.coin-marker span{font-size:23px}
+.coin-marker.collected{animation:none}
+.coin-marker.collected::before{animation:none;display:none}
+.coin-marker.in-range{animation:coinExcited .65s ease-in-out infinite alternate}
+.coin-marker.coin-tap{animation:coinTap .36s ease-out}
+@keyframes coinFloat{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-5px) rotate(3deg)}}
+@keyframes coinGlow{0%{transform:scale(.82);opacity:.75}100%{transform:scale(1.55);opacity:0}}
+@keyframes coinExcited{from{transform:translateY(-2px) scale(1.08) rotate(-5deg)}to{transform:translateY(-7px) scale(1.2) rotate(5deg)}}
+@keyframes coinTap{0%{transform:scale(1)}45%{transform:scale(.78) rotate(-12deg)}100%{transform:scale(1.08)}}
+@media(prefers-reduced-motion:reduce){.bird-wrap,.bird-wing,.coin-marker,.coin-marker::before{animation:none!important}}
