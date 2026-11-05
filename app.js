@@ -34,7 +34,7 @@ function showVictory(c){
  else{img.removeAttribute("src");img.classList.add("hidden")}
  panel.classList.remove("hidden");playVictory();
  const fx=$("fireworks");fx.innerHTML="";
- for(let i=0;i<28;i++){const p=document.createElement("i");p.style.setProperty("--a",(Math.PI*2*i/28)+"rad");p.style.setProperty("--d",(55+Math.random()*95)+"px");p.style.setProperty("--h",Math.floor(Math.random()*360));fx.appendChild(p)}
+ for(let i=0;i<28;i++){const p=document.createElement("i"),angle=Math.PI*2*i/28,distance=55+Math.random()*95;p.style.setProperty("--x",Math.cos(angle)*distance+"px");p.style.setProperty("--y",Math.sin(angle)*distance+"px");p.style.setProperty("--h",Math.floor(Math.random()*360));fx.appendChild(p)}
 }
 
 function dist(a,b){const r=Math.PI/180,R=6371000,d1=(b.lat-a.lat)*r,d2=(b.lon-a.lon)*r,x=Math.sin(d1/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(d2/2)**2;return 2*R*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))}
@@ -60,6 +60,7 @@ async function collect(c){
 }
 function collectNearby(){if(!position||!user||accuracy>35)return;for(const c of coins)if(!collected.has(c.id)&&dist(position,{lat:c.latitude,lon:c.longitude})<=Math.max(12,Math.min(18,accuracy*.45)))collect(c)}
 function startGPS(){
+ try{const AC=window.AudioContext||window.webkitAudioContext;if(AC){audioCtx=audioCtx||new AC();audioCtx.resume()}}catch(e){}
  if(!navigator.geolocation){say("GPS non disponibile.");return}if(watch!==null)return;
  locate.disabled=true;locate.textContent="◎ Ricerca GPS…";say("Attendo la posizione GPS…");
  watch=navigator.geolocation.watchPosition(p=>{
