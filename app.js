@@ -1,11 +1,11 @@
-/* STREET COINS V19 */
-const APP_VERSION="V19";
+/* STREET COINS V20 */
+const APP_VERSION="V20";
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const TRENT0={lat:46.0679,lon:11.1211},SEED_RADIUS=3600;
 const ENDPOINTS=["https://overpass.private.coffee/api/interpreter","https://ovp.dresel.systems/api/interpreter","https://overpass-api.de/api/interpreter"];
-const map=L.map("map",{zoomControl:false,preferCanvas:true,rotate:true,dragRotate:false,touchRotate:false,zoomSnap:1,zoomDelta:1,minZoom:0,maxZoom:20}).setView([0,0],2);
+const map=L.map("map",{zoomControl:false,preferCanvas:true,rotate:true,dragRotate:false,touchRotate:false,zoomSnap:0.5,zoomDelta:0.5,minZoom:17,maxZoom:20}).setView([0,0],2);
 L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_52vs_1_1db3e835804d22b5902148c7",{maxZoom:20,subdomains:"abcd",attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'}).addTo(map);
 L.control.zoom({position:"bottomright"}).addTo(map);
 const layer=L.layerGroup().addTo(map),$=id=>document.getElementById(id);
@@ -46,7 +46,7 @@ function birdIcon(moving){
  return L.divIcon({className:'player-bird-icon '+(moving?'is-moving':'is-perched'),html:'<div class="bird-wrap">'+svg+'</div>',iconSize:[58,58],iconAnchor:[29,43]});
 }
 function icon(c){let inner=c.image_path?`<img src="${db.storage.from("coin-images").getPublicUrl(c.image_path).data.publicUrl}">`:"<span>★</span>";return L.divIcon({className:"",html:`<div class="coin-marker ${collected.has(c.id)?"collected":""}" style="background:${esc(c.color||"#ff6eae")}">${inner}</div>`,iconSize:[42,42],iconAnchor:[21,21]})}
-function draw(){layer.clearLayers();coins.forEach(c=>{c.marker=L.marker([c.latitude,c.longitude],{icon:icon(c)}).addTo(layer);c.marker.bindPopup(`<div class="coin-popup"><b>${esc(c.name||c.code)}</b><p>${esc(c.description||"Nessuna descrizione disponibile.")}</p>${collected.has(c.id)?'<small>Già raccolta da te</small>':""}</div>`);c.marker.on("click",()=>{const el=c.marker.getElement()?.querySelector(".coin-marker");if(el){el.classList.remove("coin-tap");void el.offsetWidth;el.classList.add("coin-tap")}if(bonusMode)collect(c)})})}
+function draw(){layer.clearLayers();coins.forEach(c=>{c.marker=L.marker([c.latitude,c.longitude],{icon:icon(c)}).addTo(layer);c.marker.bindPopup(`<div class="coin-popup"><b>${esc(c.name||c.code)}</b><p>${esc(c.description||"Nessuna descrizione disponibile.")}</p>${collected.has(c.id)?'<small>Già raccolta da te</small>':""}</div>`);c.marker.on("click",()=>{const el=c.marker.getElement()?.querySelector(".coin-marker");if(el){el.classList.remove("coin-tap");void el.offsetWidth;el.classList.add("coin-tap")}if(bonusMode||(position&&dist(position,{lat:c.latitude,lon:c.longitude})<=collectionRadius()))collect(c)})})}
 async function loadCoins(){let {data,error}=await db.from("coins").select("*").order("code");if(error)throw error;coins=data||[];draw();return coins.length}
 async function syncUser(){
  let {data:{session}}=await db.auth.getSession();user=session?.user||null;admin=false;collected=new Set();
@@ -67,10 +67,18 @@ async function collect(c){
  }catch(e){say("Raccolta non completata: "+(e.message||"controlla la connessione e riprova."))}
  finally{pendingCollections.delete(c.id)}
 }
+function collectionRadius(){return Math.max(35,Math.min(60,accuracy*1.2))}
 function collectNearby(){
- if(!position||!user||accuracy>60)return;
- const radius=Math.max(25,Math.min(45,accuracy*.9));
- for(const c of coins){if(!collected.has(c.id)&&!pendingCollections.has(c.id)&&dist(position,{lat:c.latitude,lon:c.longitude})<=radius){collect(c);break}}
+ if(!position||accuracy>70)return;
+ const radius=collectionRadius();
+ for(const c of coins){
+  if(collected.has(c.id)||pendingCollections.has(c.id))continue;
+  if(dist(position,{lat:c.latitude,lon:c.longitude})<=radius){
+   if(user)collect(c);
+   else say("Sei vicino a una moneta! Accedi per raccoglierla.");
+   break;
+  }
+ }
 }
 function startGPS(){
  try{const AC=window.AudioContext||window.webkitAudioContext;if(AC){audioCtx=audioCtx||new AC();audioCtx.resume()}}catch(e){}
@@ -98,8 +106,8 @@ function startGPS(){
   if(!window.player){window.player=L.marker([position.lat,position.lon],{icon:birdIcon(playerMoving),zIndexOffset:1000}).addTo(map);window.circle=L.circle([position.lat,position.lon],{radius:accuracy,color:"#287cff",weight:1,fillOpacity:.07}).addTo(map)}
   else{window.player.setLatLng([position.lat,position.lon]);if(window.playerMovingState!==playerMoving){window.player.setIcon(birdIcon(playerMoving));window.playerMovingState=playerMoving}window.circle.setLatLng([position.lat,position.lon]).setRadius(accuracy)}
   if(window.playerMovingState===undefined)window.playerMovingState=playerMoving;
-  if(!hasInitialGpsView){map.setView([position.lat,position.lon],18,{animate:false});hasInitialGpsView=true}recenter.disabled=false;locate.disabled=false;locate.textContent="◎ GPS attivo";
-  say(dist(position,TRENT0)<4100?(accuracy>60?"GPS impreciso: raccolta in pausa":(!user?"GPS attivo · accedi per raccogliere":"GPS attivo · monete fisse di Trento")):"Le 100 monete si trovano a Trento e dintorni");collectNearby();updateCount();
+  if(!hasInitialGpsView){map.setView([position.lat,position.lon],17,{animate:false});hasInitialGpsView=true}recenter.disabled=false;locate.disabled=false;locate.textContent="◎ GPS attivo";
+  say(dist(position,TRENT0)<4100?(accuracy>70?"GPS impreciso: raccolta in pausa":(!user?"GPS attivo · accedi per raccogliere":"GPS attivo · monete fisse di Trento")):"Le 100 monete si trovano a Trento e dintorni");collectNearby();updateCount();
  },e=>{say(e.code===1?"Permesso GPS negato.":e.code===2?"Posizione GPS non disponibile.":"GPS lento: riprova all'aperto.");locate.disabled=false;locate.textContent="◎ Riprova GPS";if(watch!==null)navigator.geolocation.clearWatch(watch);watch=null},{enableHighAccuracy:true,maximumAge:10000,timeout:20000})}catch(e){watch=null;locate.disabled=false;locate.textContent="◎ Riprova GPS";say("Impossibile avviare il GPS: "+(e.message||"controlla i permessi del browser."))}
 }
 async function fetchTrentoWays(){
