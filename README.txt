@@ -1,9 +1,10 @@
-STREET COINS V8
+STREET COINS V9
 
-- Nessuna città predefinita e nessuna moneta casuale/provvisoria.
-- Le monete sono generate esclusivamente dalla geometria stradale OpenStreetMap.
-- Spaziatura nominale 50 metri.
-- GPS accetta anche coordinate imprecise e centra la mappa; la raccolta automatica resta sospesa sopra 35 m di errore.
-- Se il GPS non dà una posizione: sposta/ingrandisci la mappa sulla tua zona e premi ↻.
-- Versione V8 sempre visibile in basso a sinistra.
+- Il GPS è obbligatorio: senza coordinate GPS l'app non cerca strade e non genera monete.
+- Niente città predefinite, posizioni inventate o ricerca manuale sulla mappa.
+- Monete generate esclusivamente dalla geometria stradale OpenStreetMap, con spaziatura nominale di 50 metri.
+- I server cartografici vengono interrogati contemporaneamente: il caricamento termina entro circa 12 secondi, con un messaggio in caso di errore.
+- GPS con timeout di 20 secondi; messaggi distinti per permesso negato, posizione assente o GPS lento.
+- Raccolta automatica sospesa se la precisione GPS supera 35 metri.
+- Versione V9 sempre visibile in basso a sinistra.
 - Cache-busting su app.js, styles.css e manifest; service worker precedente disattivato.

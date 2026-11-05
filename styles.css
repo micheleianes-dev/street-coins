@@ -33,25 +33,4 @@ button:disabled { opacity:.45;cursor:not-allowed; }
 .coin-marker { width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;background:radial-gradient(circle at 32% 24%,#ffd9ec 0,#ff83bd 43%,#e83e91 82%);border:3px solid #fff;box-shadow:0 4px 0 #a92b68,0 6px 10px #61223f55,inset 0 0 0 2px #ffb9d9; }
 .coin-marker span { font-size:23px;line-height:1;text-shadow:1px 2px 0 #b52b70; }
 .coin-marker.in-range { transform:scale(1.18);box-shadow:0 0 0 5px #ff75b866,0 4px 0 #a92b68,0 6px 10px #61223f55,inset 0 0 0 2px #ffb9d9; }
-.bonus-hint { position:absolute;z-index:510;left:50%;bottom:112px;transform:translateX(-50%);width:max-content;max-width:calc(100% - 28px);padding:9px 13px;border-radius:12px;background:#17212bf2;color:#fff;font-size:12px;font-weight:650;text-align:center;box-shadow:0 4px 16px #17212b35; }
 @media(min-width:700px) { .hud{left:24px;right:24px;top:20px}.controls{left:24px;right:auto;width:360px;bottom:28px}.status{top:88px} }
-
-/* Indicatore versione fisso in basso a sinistra */
-.app-version {
-  position:absolute;
-  z-index:520;
-  left:10px;
-  bottom:max(12px,env(safe-area-inset-bottom));
-  padding:5px 9px;
-  border:2px solid #553047;
-  border-radius:12px;
-  background:#fff8fc;
-  color:#553047;
-  font-size:10px;
-  font-weight:1000;
-  letter-spacing:.5px;
-  box-shadow:0 3px 0 #553047;
-  pointer-events:none;
-}
-
-#appVersion { letter-spacing:.5px; }

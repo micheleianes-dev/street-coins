@@ -6,7 +6,5 @@
   "background_color": "#e9ecef",
   "theme_color": "#17212b",
   "description": "Raccogli monete camminando nelle strade del mondo reale.",
-  "icons": [
-    {"src":"coin.svg","sizes":"any","type":"image/svg+xml","purpose":"any"}
-  ]
+  "icons": [{"src":"coin.svg","sizes":"any","type":"image/svg+xml","purpose":"any"}]
 }
