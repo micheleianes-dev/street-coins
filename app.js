@@ -1,16 +1,16 @@
-/* STREET COINS V17 */
-const APP_VERSION="V17";
+/* STREET COINS V18 */
+const APP_VERSION="V18";
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const TRENT0={lat:46.0679,lon:11.1211},SEED_RADIUS=3600;
 const ENDPOINTS=["https://overpass.private.coffee/api/interpreter","https://ovp.dresel.systems/api/interpreter","https://overpass-api.de/api/interpreter"];
-const map=L.map("map",{zoomControl:false,preferCanvas:true,rotate:true,dragRotate:false,touchRotate:false,zoomSnap:1,zoomDelta:1}).setView([0,0],2);
+const map=L.map("map",{zoomControl:false,preferCanvas:true,rotate:true,dragRotate:false,touchRotate:false,zoomSnap:1,zoomDelta:1,minZoom:17,maxZoom:20}).setView([0,0],2);
 L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_52vs_1_1db3e835804d22b5902148c7",{maxZoom:20,subdomains:"abcd",attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'}).addTo(map);
 L.control.zoom({position:"bottomright"}).addTo(map);
 const layer=L.layerGroup().addTo(map),$=id=>document.getElementById(id);
 map.on("click",e=>{const lat=e.latlng.lat,lon=e.latlng.lng;L.popup().setLatLng(e.latlng).setContent(`<div class="coord-popup"><b>Punto selezionato</b><br>Latitudine: ${lat.toFixed(6)}<br>Longitudine: ${lon.toFixed(6)}</div>`).openOn(map)});
-let user=null,admin=false,position=null,accuracy=999,watch=null,coins=[],collected=new Set(),pendingCollections=new Set(),bonusMode=false,audioCtx=null,lastGpsFix=null,playerMoving=false,hasInitialGpsView=false,stableHeading=null,lastHeadingUpdate=0;
+let user=null,admin=false,position=null,accuracy=999,watch=null,coins=[],collected=new Set(),pendingCollections=new Set(),bonusMode=false,audioCtx=null,lastGpsFix=null,headingAnchor=null,playerMoving=false,hasInitialGpsView=false,stableHeading=null,lastHeadingUpdate=0;
 $("appVersion").textContent=APP_VERSION;
 const status=$("status"),locate=$("locateBtn"),account=$("accountBtn"),bonus=$("bonusBtn"),refresh=$("refreshBtn"),recenter=$("recenterBtn");
 function say(s){status.textContent=s}
@@ -68,8 +68,8 @@ async function collect(c){
  finally{pendingCollections.delete(c.id)}
 }
 function collectNearby(){
- if(!position||!user||accuracy>40)return;
- const radius=Math.max(18,Math.min(28,accuracy*.7));
+ if(!position||!user||accuracy>60)return;
+ const radius=Math.max(25,Math.min(45,accuracy*.9));
  for(const c of coins){if(!collected.has(c.id)&&!pendingCollections.has(c.id)&&dist(position,{lat:c.latitude,lon:c.longitude})<=radius){collect(c);break}}
 }
 function startGPS(){
@@ -80,23 +80,26 @@ function startGPS(){
   const nextPosition={lat:p.coords.latitude,lon:p.coords.longitude},stamp=p.timestamp||Date.now(),previousFix=lastGpsFix;
   let speed=Number.isFinite(p.coords.speed)?p.coords.speed:0,derivedHeading=null;
   const newAccuracy=p.coords.accuracy||999;
-  if(previousFix){const seconds=(stamp-previousFix.time)/1000,meters=dist(previousFix.position,nextPosition);if(seconds>.2&&!Number.isFinite(p.coords.speed))speed=meters/seconds;if(meters>=7&&seconds>=2.5&&newAccuracy<=25&&previousFix.accuracy<=25)derivedHeading=bearingBetween(previousFix.position,nextPosition)}
-  if(speed>0.95)playerMoving=true;else if(speed<0.55)playerMoving=false;
-  const gpsHeading=Number.isFinite(p.coords.heading)&&speed>=1.6? p.coords.heading:null;
-  const movementHeading=gpsHeading!==null?gpsHeading:(speed>=0.8?derivedHeading:null);
+  if(previousFix){const seconds=(stamp-previousFix.time)/1000,meters=dist(previousFix.position,nextPosition);if(seconds>.2&&!Number.isFinite(p.coords.speed))speed=meters/seconds}
+  if(!headingAnchor)headingAnchor={position:nextPosition,time:stamp};
+  const anchorSeconds=(stamp-headingAnchor.time)/1000,anchorMeters=dist(headingAnchor.position,nextPosition);
+  if(anchorSeconds>=1.2&&anchorMeters>=3&&newAccuracy<=50){derivedHeading=bearingBetween(headingAnchor.position,nextPosition);headingAnchor={position:nextPosition,time:stamp}}
+  if(speed>0.75)playerMoving=true;else if(speed<0.4)playerMoving=false;
+  const gpsHeading=Number.isFinite(p.coords.heading)&&speed>=0.7?p.coords.heading:null;
+  const movementHeading=gpsHeading!==null?gpsHeading:derivedHeading;
   lastGpsFix={position:nextPosition,time:stamp,accuracy:newAccuracy};position=nextPosition;accuracy=newAccuracy;
   if(movementHeading!==null&&typeof map.setHeading==="function"){
    const delta=stableHeading===null?180:Math.abs(((movementHeading-stableHeading+540)%360)-180);
-   if(stableHeading===null|| (delta>=12&&stamp-lastHeadingUpdate>=1500)){
-    stableHeading=stableHeading===null?movementHeading:(stableHeading+(((movementHeading-stableHeading+540)%360)-180)*0.28+360)%360;
-    map.setHeading(stableHeading,{ease:0.08,deadzone:8});lastHeadingUpdate=stamp;
+   if(stableHeading===null|| (delta>=5&&stamp-lastHeadingUpdate>=700)){
+    stableHeading=stableHeading===null?movementHeading:(stableHeading+(((movementHeading-stableHeading+540)%360)-180)*0.4+360)%360;
+    map.setHeading(stableHeading,{ease:0.12,deadzone:3});lastHeadingUpdate=stamp;
    }
   }
   if(!window.player){window.player=L.marker([position.lat,position.lon],{icon:birdIcon(playerMoving),zIndexOffset:1000}).addTo(map);window.circle=L.circle([position.lat,position.lon],{radius:accuracy,color:"#287cff",weight:1,fillOpacity:.07}).addTo(map)}
   else{window.player.setLatLng([position.lat,position.lon]);if(window.playerMovingState!==playerMoving){window.player.setIcon(birdIcon(playerMoving));window.playerMovingState=playerMoving}window.circle.setLatLng([position.lat,position.lon]).setRadius(accuracy)}
   if(window.playerMovingState===undefined)window.playerMovingState=playerMoving;
-  if(!hasInitialGpsView){map.setView([position.lat,position.lon],19,{animate:false});hasInitialGpsView=true}recenter.disabled=false;locate.disabled=false;locate.textContent="◎ GPS attivo";
-  say(dist(position,TRENT0)<4100?(accuracy>40?"GPS impreciso: raccolta in pausa":"GPS attivo · monete fisse di Trento"):"Le 100 monete si trovano a Trento e dintorni");collectNearby();updateCount();
+  if(!hasInitialGpsView){map.setView([position.lat,position.lon],18,{animate:false});hasInitialGpsView=true}recenter.disabled=false;locate.disabled=false;locate.textContent="◎ GPS attivo";
+  say(dist(position,TRENT0)<4100?(accuracy>60?"GPS impreciso: raccolta in pausa":(!user?"GPS attivo · accedi per raccogliere":"GPS attivo · monete fisse di Trento")):"Le 100 monete si trovano a Trento e dintorni");collectNearby();updateCount();
  },e=>{say(e.code===1?"Permesso GPS negato.":e.code===2?"Posizione GPS non disponibile.":"GPS lento: riprova all'aperto.");locate.disabled=false;locate.textContent="◎ Riprova GPS";if(watch!==null)navigator.geolocation.clearWatch(watch);watch=null},{enableHighAccuracy:true,maximumAge:10000,timeout:20000})
 }
 async function fetchTrentoWays(){
