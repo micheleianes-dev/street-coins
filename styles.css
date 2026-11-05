@@ -2,7 +2,7 @@
 html,body,#app { width:100%;height:100%;margin:0;font-family:"Trebuchet MS",system-ui,sans-serif; }
 body { overflow:hidden;background:#f7e9f0; }
 #map { position:absolute;inset:0;z-index:1;background:#e8ece8; }
-.leaflet-tile { filter:saturate(.48) contrast(.94) brightness(1.12) sepia(.06); }
+.leaflet-tile { filter:none; }
 .leaflet-control-attribution { font-size:9px!important;background:rgba(255,255,255,.72)!important; }
 .leaflet-control-zoom a { color:#17212b!important;border:0!important; }
 .leaflet-bar { border:0!important;border-radius:12px!important;overflow:hidden;box-shadow:0 4px 15px #17212b22!important; }
