@@ -1,7 +1,5 @@
-STREET COINS V12
-- Tutte le funzioni della V11 sono mantenute.
-- Toccando una moneta sulla mappa si apre una scheda con nome e descrizione.
-- Toccando un punto vuoto della mappa si visualizzano latitudine e longitudine.
-- Nel pannello amministratore sono modificabili nome, descrizione, coordinate, colore e immagine.
-- Nome e descrizione vengono salvati su Supabase.
-- Prima di pubblicare V12, eseguire una sola volta il file supabase-v12.sql nel Supabase SQL Editor.
+STREET COINS V13
+- Raccolta: suono di vittoria, animazione fuochi d'artificio e scheda premio con titolo, immagine e descrizione; si chiude con Avanti.
+- Pannello admin: comando Torna alla mappa e anteprima dell'immagine già caricata.
+- La mappa segue la posizione GPS mantenendo il nord in alto (orientamento Leaflet standard).
+- Mantiene database Supabase, raccolte personali, coordinate, colori e immagini.
