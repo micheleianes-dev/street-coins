@@ -114,3 +114,7 @@ button:disabled { opacity:.45;cursor:not-allowed; }
 .recenter-control:disabled{opacity:.45}
 .leaflet-control-zoom{margin-bottom:10px!important}
 @media(min-width:700px){.recenter-control{right:24px;bottom:118px}}
+
+
+/* STREET COINS V17 — pulsante ricentra sempre leggibile */
+.recenter-control{z-index:1200;touch-action:manipulation;pointer-events:auto}
