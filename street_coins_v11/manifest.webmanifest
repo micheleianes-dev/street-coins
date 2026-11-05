@@ -1,0 +1,10 @@
+{
+  "name": "Street Coins",
+  "short_name": "Street Coins",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#e9ecef",
+  "theme_color": "#17212b",
+  "description": "Raccogli monete camminando nelle strade del mondo reale.",
+  "icons": [{"src":"coin.svg","sizes":"any","type":"image/svg+xml","purpose":"any"}]
+}
