@@ -1,11 +1,11 @@
-/* STREET COINS V9 - GPS obbligatorio, caricamento strade con timeout breve */
-const APP_VERSION="V9";
+/* STREET COINS V10 - GPS obbligatorio, caricamento strade con timeout breve */
+const APP_VERSION="V10";
 const SEARCH_RADIUS_M=650, COIN_SPACING_M=50, PICKUP_BASE_M=12, BONUS_RADIUS_M=200, MAX_COINS=90;
 const CACHE_TTL_MS=8*60*1000;
 const OVERPASS_ENDPOINTS=[
- "https://overpass.kumi.systems/api/interpreter",
- "https://overpass-api.de/api/interpreter",
- "https://overpass.private.coffee/api/interpreter"
+ "https://overpass.private.coffee/api/interpreter",
+ "https://ovp.dresel.systems/api/interpreter",
+ "https://overpass-api.de/api/interpreter"
 ];
 const map=L.map("map",{zoomControl:false,preferCanvas:true}).setView([0,0],2);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,subdomains:"abc",attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);

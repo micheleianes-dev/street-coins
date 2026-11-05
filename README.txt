@@ -1,4 +1,4 @@
-STREET COINS V9
+STREET COINS V10
 
 - Il GPS è obbligatorio: senza coordinate GPS l'app non cerca strade e non genera monete.
 - Niente città predefinite, posizioni inventate o ricerca manuale sulla mappa.
@@ -8,3 +8,5 @@ STREET COINS V9
 - Raccolta automatica sospesa se la precisione GPS supera 35 metri.
 - Versione V9 sempre visibile in basso a sinistra.
 - Cache-busting su app.js, styles.css e manifest; service worker precedente disattivato.
+
+V10: aggiornati gli endpoint Overpass; usa Private.coffee, Overpass Europe e overpass-api.de.
