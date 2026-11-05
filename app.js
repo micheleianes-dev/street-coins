@@ -1,11 +1,11 @@
-/* STREET COINS V18 */
-const APP_VERSION="V18";
+/* STREET COINS V19 */
+const APP_VERSION="V19";
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const TRENT0={lat:46.0679,lon:11.1211},SEED_RADIUS=3600;
 const ENDPOINTS=["https://overpass.private.coffee/api/interpreter","https://ovp.dresel.systems/api/interpreter","https://overpass-api.de/api/interpreter"];
-const map=L.map("map",{zoomControl:false,preferCanvas:true,rotate:true,dragRotate:false,touchRotate:false,zoomSnap:1,zoomDelta:1,minZoom:17,maxZoom:20}).setView([0,0],2);
+const map=L.map("map",{zoomControl:false,preferCanvas:true,rotate:true,dragRotate:false,touchRotate:false,zoomSnap:1,zoomDelta:1,minZoom:0,maxZoom:20}).setView([0,0],2);
 L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_52vs_1_1db3e835804d22b5902148c7",{maxZoom:20,subdomains:"abcd",attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'}).addTo(map);
 L.control.zoom({position:"bottomright"}).addTo(map);
 const layer=L.layerGroup().addTo(map),$=id=>document.getElementById(id);
@@ -76,7 +76,7 @@ function startGPS(){
  try{const AC=window.AudioContext||window.webkitAudioContext;if(AC){audioCtx=audioCtx||new AC();audioCtx.resume()}}catch(e){}
  if(!navigator.geolocation){say("GPS non disponibile.");return}if(watch!==null)return;
  locate.disabled=true;locate.textContent="◎ Ricerca GPS…";say("Attendo la posizione GPS…");
- watch=navigator.geolocation.watchPosition(p=>{
+ try{watch=navigator.geolocation.watchPosition(p=>{
   const nextPosition={lat:p.coords.latitude,lon:p.coords.longitude},stamp=p.timestamp||Date.now(),previousFix=lastGpsFix;
   let speed=Number.isFinite(p.coords.speed)?p.coords.speed:0,derivedHeading=null;
   const newAccuracy=p.coords.accuracy||999;
@@ -92,7 +92,7 @@ function startGPS(){
    const delta=stableHeading===null?180:Math.abs(((movementHeading-stableHeading+540)%360)-180);
    if(stableHeading===null|| (delta>=5&&stamp-lastHeadingUpdate>=700)){
     stableHeading=stableHeading===null?movementHeading:(stableHeading+(((movementHeading-stableHeading+540)%360)-180)*0.4+360)%360;
-    map.setHeading(stableHeading,{ease:0.12,deadzone:3});lastHeadingUpdate=stamp;
+    try{map.setHeading(stableHeading,{ease:0.12,deadzone:3})}catch(e){console.warn("Rotazione mappa non disponibile",e)}lastHeadingUpdate=stamp;
    }
   }
   if(!window.player){window.player=L.marker([position.lat,position.lon],{icon:birdIcon(playerMoving),zIndexOffset:1000}).addTo(map);window.circle=L.circle([position.lat,position.lon],{radius:accuracy,color:"#287cff",weight:1,fillOpacity:.07}).addTo(map)}
@@ -100,7 +100,7 @@ function startGPS(){
   if(window.playerMovingState===undefined)window.playerMovingState=playerMoving;
   if(!hasInitialGpsView){map.setView([position.lat,position.lon],18,{animate:false});hasInitialGpsView=true}recenter.disabled=false;locate.disabled=false;locate.textContent="◎ GPS attivo";
   say(dist(position,TRENT0)<4100?(accuracy>60?"GPS impreciso: raccolta in pausa":(!user?"GPS attivo · accedi per raccogliere":"GPS attivo · monete fisse di Trento")):"Le 100 monete si trovano a Trento e dintorni");collectNearby();updateCount();
- },e=>{say(e.code===1?"Permesso GPS negato.":e.code===2?"Posizione GPS non disponibile.":"GPS lento: riprova all'aperto.");locate.disabled=false;locate.textContent="◎ Riprova GPS";if(watch!==null)navigator.geolocation.clearWatch(watch);watch=null},{enableHighAccuracy:true,maximumAge:10000,timeout:20000})
+ },e=>{say(e.code===1?"Permesso GPS negato.":e.code===2?"Posizione GPS non disponibile.":"GPS lento: riprova all'aperto.");locate.disabled=false;locate.textContent="◎ Riprova GPS";if(watch!==null)navigator.geolocation.clearWatch(watch);watch=null},{enableHighAccuracy:true,maximumAge:10000,timeout:20000})}catch(e){watch=null;locate.disabled=false;locate.textContent="◎ Riprova GPS";say("Impossibile avviare il GPS: "+(e.message||"controlla i permessi del browser."))}
 }
 async function fetchTrentoWays(){
  const q=`[out:json][timeout:20];way(around:${SEED_RADIUS},${TRENT0.lat},${TRENT0.lon})["highway"~"^(residential|tertiary|secondary|primary|living_street|unclassified|road|service)$"];out geom;`;
@@ -146,7 +146,7 @@ account.onclick=async()=>{if(!user){$("authPanel").classList.remove("hidden");re
 $("authClose").onclick=()=>$("authPanel").classList.add("hidden");$("adminClose").onclick=()=>$("adminPanel").classList.add("hidden");$("adminBack").onclick=()=>$("adminPanel").classList.add("hidden");$("victoryNext").onclick=()=>$("victoryPanel").classList.add("hidden");
 $("login").onclick=async()=>{let r=await db.auth.signInWithPassword({email:$("email").value.trim(),password:$("password").value});$("authMsg").textContent=r.error?.message||"Accesso effettuato";if(!r.error){$("authPanel").classList.add("hidden");await syncUser();if(admin)showAdmin()}}
 $("signup").onclick=async()=>{let r=await db.auth.signUp({email:$("email").value.trim(),password:$("password").value});$("authMsg").textContent=r.error?.message||"Registrazione avviata: controlla la posta per confermare l'email."}
-$("seedCoins").onclick=seed;locate.onclick=startGPS;recenter.onclick=()=>{if(position){if(typeof map.stopHeadingUp==="function")map.stopHeadingUp();map.setView([position.lat,position.lon],map.getZoom(),{animate:false});if(stableHeading!==null&&typeof map.setHeading==="function")map.setHeading(stableHeading,{ease:.08,deadzone:8})}};refresh.onclick=()=>loadCoins().then(n=>say(`${n} monete caricate`)).catch(e=>say(e.message));
+$("seedCoins").onclick=seed;locate.onclick=startGPS;recenter.onclick=()=>{if(position){if(typeof map.stopHeadingUp==="function")map.stopHeadingUp();map.setView([position.lat,position.lon],map.getZoom(),{animate:false});if(stableHeading!==null&&typeof map.setHeading==="function"){try{map.setHeading(stableHeading,{ease:.08,deadzone:8})}catch(e){console.warn("Rotazione mappa non disponibile",e)}}}};refresh.onclick=()=>loadCoins().then(n=>say(`${n} monete caricate`)).catch(e=>say(e.message));
 bonus.onclick=()=>{if(!user){$("authPanel").classList.remove("hidden");return}bonusMode=!bonusMode;bonus.classList.toggle("active",bonusMode);say(bonusMode?"Bonus attivo: tocca una moneta entro 200 metri.":"Bonus disattivato")};
 db.auth.onAuthStateChange(()=>setTimeout(syncUser,0));
 (async()=>{try{await syncUser();let n=await loadCoins();say(n?`${n} monete fisse caricate. Accedi e attiva il GPS.`:"Database pronto: accedi come amministratore e crea le 100 monete.");}catch(e){say("Errore database: "+e.message)}})();
