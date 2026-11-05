@@ -58,3 +58,20 @@ button:disabled { opacity:.45;cursor:not-allowed; }
 .coin-popup small{color:#9c6b88;font-weight:800}
 .coin-admin-row textarea{display:block;width:100%;min-height:68px;padding:9px;margin-top:4px;border:1px solid #d9b8ca;border-radius:8px;resize:vertical;font:inherit}
 .coin-admin-row label:nth-of-type(2){grid-column:1/-1}
+
+.coin-admin-preview{display:block;grid-column:1/-1;width:76px;height:76px;object-fit:cover;border-radius:12px;border:2px solid #e5cad8}
+.coin-admin-row .no-image{grid-column:1/-1;margin:0;color:#9c6b88;font-size:11px}
+.back-button{width:100%;margin-top:16px!important;background:#b9e9ff;color:#28475a}
+.victory-modal{z-index:3000;background:#241329dd}
+.victory-dialog{width:min(480px,100%);text-align:center;overflow:hidden;padding:28px 22px;max-height:90%;border-color:#ff6eae;box-shadow:0 0 0 5px #fff5,0 12px 40px #0005}
+.victory-dialog h1{font-size:clamp(24px,7vw,38px);margin:4px 0 12px;color:#e83e91;text-shadow:1px 2px #ffd2e5}
+.victory-dialog h2{font-size:24px;margin:12px 0 8px}
+.victory-dialog p{font-size:16px;line-height:1.5;white-space:pre-wrap}
+.victory-emoji{font-size:48px;animation:winBounce .65s ease-in-out infinite alternate}
+.victory-image{width:min(220px,70%);max-height:220px;object-fit:contain;border-radius:18px;margin:10px auto;border:3px solid #ffd0e5}
+.victory-dialog button{width:100%;margin-top:12px}
+.fireworks{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.fireworks i{position:absolute;left:50%;top:22%;width:7px;height:7px;border-radius:50%;background:hsl(var(--h),100%,60%);animation:burst .9s ease-out forwards;animation-delay:calc(var(--i,0)*1ms);transform:translate(-50%,-50%)}
+.fireworks i:nth-child(3n){top:34%;left:22%}.fireworks i:nth-child(3n + 1){top:30%;left:78%}
+@keyframes burst{from{opacity:1;transform:translate(-50%,-50%) scale(.4)}to{opacity:0;transform:translate(calc(-50% + cos(var(--a))*var(--d)),calc(-50% + sin(var(--a))*var(--d))) scale(1.4)}}
+@keyframes winBounce{to{transform:translateY(-8px) rotate(8deg)}}
