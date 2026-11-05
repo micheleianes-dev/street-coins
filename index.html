@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#111923">
+  <title>Street Coins</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="coin.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main id="app">
+    <div id="map" aria-label="Mappa di gioco"></div>
+
+    <header class="hud">
+      <div class="brand"><span class="brand-coin">✦</span><span>STREET COINS</span></div>
+      <div class="counter"><span class="counter-icon">🪙</span><span id="coinCount">0</span><small>MONETE</small></div>
+    </header>
+
+    <section class="status" id="status" role="status">Premi “Attiva GPS” per iniziare.</section>
+
+    <div class="controls">
+      <button id="locateBtn" class="primary">◎ Attiva GPS</button>
+      <button id="bonusBtn" class="bonus" disabled><span>✦</span><small>BONUS <b id="bonusCount">1</b></small></button>
+      <button id="refreshBtn" class="secondary" title="Ricarica le monete">↻</button>
+    </div>
+
+    <div class="bottom-note" id="bottomNote">Cammina in sicurezza · Le monete si trovano sulle strade</div>
+    <div class="toast" id="toast" aria-live="polite"></div>
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
