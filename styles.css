@@ -107,3 +107,10 @@ button:disabled { opacity:.45;cursor:not-allowed; }
 @keyframes coinExcited{from{transform:translateY(-2px) scale(1.08) rotate(-5deg)}to{transform:translateY(-7px) scale(1.2) rotate(5deg)}}
 @keyframes coinTap{0%{transform:scale(1)}45%{transform:scale(.78) rotate(-12deg)}100%{transform:scale(1.08)}}
 @media(prefers-reduced-motion:reduce){.bird-wrap,.bird-wing,.coin-marker,.coin-marker::before{animation:none!important}}
+
+
+/* STREET COINS V16 — mappa libera e pulsante ricentra */
+.recenter-control{position:absolute;z-index:650;right:12px;bottom:118px;width:50px;height:50px;padding:0;border-radius:17px;background:#fff8fc;color:#315b79;font-size:30px;line-height:1;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 0 #315b79,0 7px 14px #17212b35}
+.recenter-control:disabled{opacity:.45}
+.leaflet-control-zoom{margin-bottom:10px!important}
+@media(min-width:700px){.recenter-control{right:24px;bottom:118px}}
