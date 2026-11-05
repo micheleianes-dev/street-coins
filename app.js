@@ -1,24 +1,23 @@
-/* Street Coins v6
-   Basemap CARTO Voyager senza etichette, dati stradali OpenStreetMap via Overpass.
+/* STREET COINS V7
+   Monete rosa sempre visibili. Strade via Overpass; fallback locale se il servizio non risponde.
 */
-const DEFAULT_VIEW = [46.0679, 11.1211]; // Trento: posizione iniziale modificabile sulla mappa
-const SEARCH_RADIUS_M = 520;
+const APP_VERSION = "V7";
+const DEFAULT_VIEW = [46.0679, 11.1211]; // Trento come punto iniziale; usa GPS o trascina la mappa
+const SEARCH_RADIUS_M = 650;
 const COIN_SPACING_M = 50;
 const PICKUP_BASE_M = 12;
 const BONUS_RADIUS_M = 200;
-const MAX_COINS = 85;
+const MAX_COINS = 90;
 const CACHE_TTL_MS = 8 * 60 * 1000;
 const OVERPASS_ENDPOINTS = [
   "https://overpass.kumi.systems/api/interpreter",
   "https://overpass-api.de/api/interpreter",
-  "https://overpass.private.coffee/api/interpreter",
-  "https://overpass.nchc.org.tw/api/interpreter"
+  "https://overpass.private.coffee/api/interpreter"
 ];
 
 const map = L.map("map", {zoomControl:false, preferCanvas:true}).setView(DEFAULT_VIEW, 16);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  maxZoom:19,
-  subdomains:"abc",
+  maxZoom:19, subdomains:"abc",
   attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 }).addTo(map);
 L.control.zoom({position:"bottomright"}).addTo(map);
@@ -27,15 +26,19 @@ const coinLayer = L.layerGroup().addTo(map);
 let playerMarker=null, playerCircle=null, watchId=null, currentPosition=null;
 let coins=[], total=Number(localStorage.getItem("streetCoinsTotal")||0);
 let bonusCharges=Number(localStorage.getItem("streetCoinsBonus") ?? 1);
-let bonusMode=false, generating=false, lastGeneratedAt=null;
-let lastGoodFix=null, lastRoadCenter=null, lastFailedAt=null;
+let bonusMode=false, generating=false, lastGoodFix=null, lastRoadCenter=null, lastFailedAt=null;
 document.getElementById("coinCount").textContent=total;
 const statusEl=document.getElementById("status"), locateBtn=document.getElementById("locateBtn");
 const refreshBtn=document.getElementById("refreshBtn"), bonusBtn=document.getElementById("bonusBtn");
 const toastEl=document.getElementById("toast");
+const versionEl=document.getElementById("appVersion");
+if(versionEl) versionEl.textContent=APP_VERSION;
 
 function setStatus(s){statusEl.textContent=s;}
-function showToast(s){toastEl.textContent=s;toastEl.classList.add("show");clearTimeout(showToast.timer);showToast.timer=setTimeout(()=>toastEl.classList.remove("show"),1550);}
+function showToast(s){
+  toastEl.textContent=s;toastEl.classList.add("show");
+  clearTimeout(showToast.timer);showToast.timer=setTimeout(()=>toastEl.classList.remove("show"),1700);
+}
 function updateBonusUI(){
   document.getElementById("bonusCount").textContent=bonusCharges;
   bonusBtn.disabled=!currentPosition||bonusCharges<=0;
@@ -45,6 +48,46 @@ function distanceMeters(a,b){
   const R=6371000,rad=Math.PI/180,dLat=(b.lat-a.lat)*rad,dLon=(b.lon-a.lon)*rad;
   const x=Math.sin(dLat/2)**2+Math.cos(a.lat*rad)*Math.cos(b.lat*rad)*Math.sin(dLon/2)**2;
   return 2*R*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
+}
+function coinIcon(inRange=false){
+  return L.divIcon({className:"",html:`<div class="coin-marker ${inRange?"in-range":""}"><span>★</span></div>`,iconSize:[42,42],iconAnchor:[21,21]});
+}
+function playerIcon(){
+  return L.divIcon({className:"",html:'<div class="player-dot"></div>',iconSize:[22,22],iconAnchor:[11,11]});
+}
+function clearCoins(){coinLayer.clearLayers();coins=[];}
+function cacheKey(lat,lon){return `streetRoads:${lat.toFixed(3)}:${lon.toFixed(3)}`;}
+
+async function fetchRoads(lat,lon){
+  const key=cacheKey(lat,lon);
+  try{
+    const cached=JSON.parse(localStorage.getItem(key)||"null");
+    if(cached&&Date.now()-cached.time<CACHE_TTL_MS&&Array.isArray(cached.elements)&&cached.elements.length)return cached.elements;
+  }catch(_){}
+  const query=`[out:json][timeout:20];way(around:${SEARCH_RADIUS_M},${lat},${lon})["highway"~"^(residential|tertiary|secondary|primary|living_street|unclassified|road|service)$"];out geom;`;
+  let lastError=null;
+  for(const endpoint of OVERPASS_ENDPOINTS){
+    try{
+      const controller=new AbortController();
+      const timer=setTimeout(()=>controller.abort(),18000);
+      let response;
+      try{
+        // GET avoids POST restrictions encountered by some Overpass mirrors.
+        const url=endpoint+"?data="+encodeURIComponent(query);
+        response=await fetch(url,{method:"GET",mode:"cors",signal:controller.signal,cache:"no-store"});
+      }finally{clearTimeout(timer);}
+      if(!response.ok)throw new Error(`server ${response.status}`);
+      const data=await response.json();
+      const elements=data.elements||[];
+      if(!elements.length)throw new Error("nessuna strada restituita");
+      try{localStorage.setItem(key,JSON.stringify({time:Date.now(),elements}));}catch(_){}
+      return elements;
+    }catch(err){
+      lastError=err;
+      console.warn("Overpass non disponibile:",endpoint,err);
+    }
+  }
+  throw new Error(lastError?.message||"servizio stradale non raggiungibile");
 }
 function interpolateRoadPoints(nodes,spacing){
   const pts=[];let carry=0;
@@ -57,87 +100,66 @@ function interpolateRoadPoints(nodes,spacing){
   }
   return pts;
 }
-function coinIcon(inRange=false){
-  return L.divIcon({
-    className:"",
-    html:`<div class="coin-marker ${inRange?"in-range":""}"><span>★</span></div>`,
-    iconSize:[42,42],
-    iconAnchor:[21,21]
-  });
-}
-function playerIcon(){return L.divIcon({className:"",html:'<div class="player-dot"></div>',iconSize:[20,20],iconAnchor:[10,10]});}
-function clearCoins(){coinLayer.clearLayers();coins=[];}
-function cacheKey(lat,lon){return `streetRoads:${lat.toFixed(3)}:${lon.toFixed(3)}`;}
-async function fetchRoads(lat,lon){
-  const key=cacheKey(lat,lon);
-  try{
-    const cached=JSON.parse(localStorage.getItem(key)||"null");
-    if(cached&&Date.now()-cached.time<CACHE_TTL_MS&&Array.isArray(cached.elements)&&cached.elements.length)return cached.elements;
-  }catch(_){}
-  const query=`[out:json][timeout:25];way(around:${SEARCH_RADIUS_M},${lat},${lon})["highway"~"^(residential|tertiary|secondary|primary|living_street|unclassified|road|service)$"];out geom;`;
-  let lastError=null;
-  for(const endpoint of OVERPASS_ENDPOINTS){
-    try{
-      const controller=new AbortController();
-      const timer=setTimeout(()=>controller.abort(),28000);
-      let response;
-      try{
-        response=await fetch(endpoint,{method:"POST",mode:"cors",headers:{"Content-Type":"application/x-www-form-urlencoded;charset=UTF-8"},body:"data="+encodeURIComponent(query),signal:controller.signal});
-      }finally{clearTimeout(timer);}
-      if(!response.ok)throw new Error(`server ${response.status}`);
-      const data=await response.json();
-      const elements=data.elements||[];
-      if(!elements.length)throw new Error("nessuna strada restituita dall'area");
-      try{localStorage.setItem(key,JSON.stringify({time:Date.now(),elements}));}catch(_){}
-      return elements;
-    }catch(err){
-      lastError=err;
-      console.warn("Overpass non disponibile:",endpoint,err);
-    }
-  }
-  throw new Error(lastError?.message||"nessun servizio cartografico ha risposto");
-}
 function drawCoins(points){
   clearCoins();
   points.forEach((p,i)=>{
     const id=`${p.lat.toFixed(6)}:${p.lon.toFixed(6)}:${i}`;
+    const coin={id,lat:p.lat,lon:p.lon,marker:null};
     const marker=L.marker([p.lat,p.lon],{icon:coinIcon(),keyboard:false}).addTo(coinLayer);
-    marker.on("click",()=>{if(bonusMode)useBonusOn(coin);});
-    const coin={id,lat:p.lat,lon:p.lon,marker};
-    // click handler uses the object created for this marker
-    marker.off("click");
+    coin.marker=marker;
     marker.on("click",()=>{if(bonusMode)useBonusOn(coin);});
     coins.push(coin);
   });
 }
+function fallbackPoints(lat,lon){
+  // Griglia di monete in un'area intorno al centro: garantisce che la mappa non resti vuota.
+  // Questi punti sono provvisori e non garantiscono che coincidano con il tracciato stradale.
+  const points=[];
+  const latStep=0.00045; // circa 50 m
+  const lonStep=latStep/Math.max(0.25,Math.cos(lat*Math.PI/180));
+  for(let ring=0;ring<7;ring++){
+    for(let i=-7;i<=7;i++){
+      const j=ring%2===0?i:i+0.5;
+      if(Math.abs(i)+ring<2)continue;
+      const p={lat:lat+(ring-3)*latStep,lon:lon+j*lonStep};
+      if(distanceMeters({lat,lon},p)<SEARCH_RADIUS_M)points.push(p);
+    }
+  }
+  return points.slice(0,MAX_COINS);
+}
 async function generateCoins(lat,lon,force=false){
   if(generating)return;
-  if(!force&&lastRoadCenter&&distanceMeters({lat,lon},lastRoadCenter)<260&&coins.length)return;
-  if(!force&&lastFailedAt&&Date.now()-lastFailedAt<45000){
-    setStatus("Strade non disponibili. Premi ↻ per riprovare.");
-    return;
-  }
-  generating=true;setStatus("Caricamento delle strade vicine…");
+  generating=true;
+  setStatus("Cerco le strade e preparo le monete…");
   try{
-    const ways=await fetchRoads(lat,lon);
-    let candidates=[];
-    for(const way of ways){
-      if(!way.geometry||way.geometry.length<2)continue;
-      candidates.push(...interpolateRoadPoints(way.geometry.map(p=>({lat:p.lat,lon:p.lon})),COIN_SPACING_M));
+    let points=[],source="strade";
+    try{
+      const ways=await fetchRoads(lat,lon);
+      let candidates=[];
+      for(const way of ways){
+        if(way.geometry&&way.geometry.length>=2){
+          candidates.push(...interpolateRoadPoints(way.geometry.map(p=>({lat:p.lat,lon:p.lon})),COIN_SPACING_M));
+        }
+      }
+      candidates=candidates.filter(p=>distanceMeters({lat,lon},p)<SEARCH_RADIUS_M*.97);
+      for(let i=candidates.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[candidates[i],candidates[j]]=[candidates[j],candidates[i]];}
+      for(const p of candidates){
+        if(points.every(q=>distanceMeters(p,q)>28))points.push(p);
+        if(points.length>=MAX_COINS)break;
+      }
+      if(!points.length)throw new Error("nessuna posizione stradale utile");
+    }catch(err){
+      console.warn("Uso monete provvisorie:",err);
+      points=fallbackPoints(lat,lon);
+      source="provvisorie";
     }
-    candidates=candidates.filter(p=>distanceMeters({lat,lon},p)<SEARCH_RADIUS_M*.97);
-    for(let i=candidates.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[candidates[i],candidates[j]]=[candidates[j],candidates[i]];}
-    const chosen=[];
-    for(const p of candidates){
-      if(chosen.every(q=>distanceMeters(p,q)>28))chosen.push(p);
-      if(chosen.length>=MAX_COINS)break;
+    drawCoins(points);
+    lastRoadCenter={lat,lon};
+    if(source==="strade"){
+      setStatus(`${coins.length} monete rosa sulle strade`);
+    }else{
+      setStatus(`${coins.length} monete rosa visibili · modalità provvisoria`);
     }
-    drawCoins(chosen);lastRoadCenter={lat,lon};lastGeneratedAt=Date.now();lastFailedAt=null;
-    setStatus(`${coins.length} monete distribuite sulle strade`);
-    if(!coins.length)setStatus("Strade trovate, ma nessuna posizione utile per le monete. Premi ↻.");
-  }catch(err){
-    console.warn(err);lastFailedAt=Date.now();
-    setStatus(`Dati stradali non raggiungibili (${err?.message||"errore di rete"}). Premi ↻ per riprovare.`);
   }finally{generating=false;}
 }
 function collectCoin(coin,source="gps"){
@@ -146,15 +168,15 @@ function collectCoin(coin,source="gps"){
   coins=coins.filter(c=>c.id!==coin.id);
   total++;localStorage.setItem("streetCoinsTotal",String(total));
   document.getElementById("coinCount").textContent=total;
-  // Una carica bonus ogni 10 monete raccolte normalmente.
-  if(source==="gps"&&total%10===0){bonusCharges++;localStorage.setItem("streetCoinsBonus",String(bonusCharges));updateBonusUI();showToast("+1 MONETA · BONUS RICARICATO!");}
-  else showToast(source==="bonus"?"BONUS! +1 MONETA":" +1 MONETA!");
+  if(source==="gps"&&total%10===0){
+    bonusCharges++;localStorage.setItem("streetCoinsBonus",String(bonusCharges));
+    updateBonusUI();showToast("+1 MONETA · BONUS RICARICATO!");
+  }else showToast(source==="bonus"?"BONUS! +1 MONETA":"+1 MONETA!");
   if(!coins.length)setStatus("Zona completata! Premi ↻ per cercare altre monete.");
 }
 function collectNearby(){
   if(!currentPosition)return;
   const accuracy=lastGoodFix?.accuracy??999;
-  // Non raccogliere automaticamente se il GPS è impreciso: le monete restano visibili.
   if(accuracy>35)return;
   const radius=Math.max(PICKUP_BASE_M,Math.min(18,accuracy*.45));
   for(const coin of [...coins]){
@@ -174,54 +196,51 @@ function updatePlayer(lat,lon,accuracy){
 }
 function onGPS(pos){
   const {latitude,longitude,accuracy}=pos.coords;
-  // Accetta anche fix indoor imprecisi: servono per centrare approssimativamente la mappa.
   if(!Number.isFinite(latitude)||!Number.isFinite(longitude))return;
-  const safeAccuracy=Number.isFinite(accuracy)?accuracy:999;
-  lastGoodFix={lat:latitude,lon:longitude,accuracy:safeAccuracy};
-  updatePlayer(latitude,longitude,safeAccuracy);
-  if(!coins.length&&!generating){
-    if(!lastFailedAt||Date.now()-lastFailedAt>=45000)generateCoins(latitude,longitude);
-  }else if(lastRoadCenter&&distanceMeters({lat:latitude,lon:longitude},lastRoadCenter)>320&&!generating){
+  const acc=Number.isFinite(accuracy)?accuracy:999;
+  lastGoodFix={lat:latitude,lon:longitude,accuracy:acc};
+  updatePlayer(latitude,longitude,acc);
+  if(!lastRoadCenter||distanceMeters({lat:latitude,lon:longitude},lastRoadCenter)>260){
     generateCoins(latitude,longitude,true);
   }
-  if(safeAccuracy>35){
-    setStatus(`Monete visibili · GPS approssimativo (±${Math.round(safeAccuracy)} m). Raccolta automatica in pausa.`);
-  }else{
-    setStatus(`GPS attivo · precisione ±${Math.round(safeAccuracy)} m`);
-  }
+  setStatus(acc>35
+    ? `Monete visibili · GPS approssimativo (±${Math.round(acc)} m), raccolta automatica in pausa`
+    : `GPS attivo · precisione ±${Math.round(acc)} m`);
 }
 function startGPS(){
-  if(!navigator.geolocation){setStatus("Questo dispositivo non supporta il GPS.");return;}
+  if(!navigator.geolocation){setStatus("GPS non disponibile: puoi usare la mappa manualmente.");return;}
   if(watchId!==null)return;
-  locateBtn.disabled=true;locateBtn.textContent="◎ GPS attivo";setStatus("Ricerca del segnale GPS…");
+  locateBtn.disabled=true;locateBtn.textContent="◎ GPS attivo";
+  setStatus("Cerco la posizione…");
   watchId=navigator.geolocation.watchPosition(onGPS,err=>{
-    const messages={1:"Permesso posizione negato: abilitalo nelle impostazioni.",2:"Posizione non disponibile. Prova all'aperto.",3:"GPS lento. Riprova."};
-    setStatus(messages[err.code]||"Errore GPS.");locateBtn.disabled=false;locateBtn.textContent="◎ Riprova GPS";watchId=null;
-  },{enableHighAccuracy:true,maximumAge:0,timeout:25000});
+    const messages={1:"Permesso posizione negato: usa la mappa manualmente.",2:"Posizione non disponibile: usa la mappa manualmente.",3:"GPS lento: puoi comunque usare la mappa."};
+    setStatus(messages[err.code]||"GPS non disponibile: usa la mappa.");
+    locateBtn.disabled=false;locateBtn.textContent="◎ Riprova GPS";watchId=null;
+  },{enableHighAccuracy:true,maximumAge:15000,timeout:30000});
 }
 function useBonusOn(coin){
   if(!bonusMode||bonusCharges<=0||!currentPosition)return;
+  if(lastGoodFix&&lastGoodFix.accuracy>35){showToast("GPS troppo impreciso per il bonus");return;}
   const d=distanceMeters(currentPosition,coin);
   if(d>BONUS_RADIUS_M){showToast("Questa moneta è oltre 200 m");return;}
   bonusCharges--;localStorage.setItem("streetCoinsBonus",String(bonusCharges));
   bonusMode=false;bonusBtn.classList.remove("active");
-  collectCoin(coin,"bonus");updateBonusUI();setStatus("Bonus utilizzato! Puoi continuare a camminare.");
+  collectCoin(coin,"bonus");updateBonusUI();setStatus("Bonus utilizzato!");
 }
 function toggleBonus(){
-  if(!currentPosition){setStatus("Attiva prima il GPS.");return;}
-  if(bonusCharges<=0){setStatus("Nessun bonus disponibile: raccogli 10 monete per ricaricarlo.");return;}
+  if(!currentPosition){setStatus("Attiva il GPS per usare il bonus.");return;}
+  if(lastGoodFix&&lastGoodFix.accuracy>35){setStatus("GPS troppo impreciso per usare il bonus.");return;}
+  if(bonusCharges<=0){setStatus("Nessun bonus disponibile: raccogli 10 monete.");return;}
   if(bonusMode){bonusMode=false;bonusBtn.classList.remove("active");setStatus("Selezione bonus annullata.");return;}
   const inRange=coins.filter(c=>distanceMeters(currentPosition,c)<=BONUS_RADIUS_M);
-  if(!inRange.length){setStatus("Non ci sono monete entro 200 metri.");return;}
+  if(!inRange.length){showToast("Nessuna moneta entro 200 metri");return;}
   bonusMode=true;bonusBtn.classList.add("active");
   inRange.forEach(c=>c.marker.setIcon(coinIcon(true)));
-  setStatus("Bonus attivo: tocca una moneta entro 200 metri sulla mappa.");
+  setStatus("Bonus attivo: tocca una moneta rosa.");
   showToast("SCEGLI UNA MONETA");
 }
 function refreshCoins(){
-  lastFailedAt=null;
   bonusMode=false;bonusBtn.classList.remove("active");
-  // Se il GPS non è disponibile, usa il centro attuale della mappa.
   const center=currentPosition||map.getCenter();
   generateCoins(center.lat,center.lng,true);
 }
@@ -229,8 +248,14 @@ bonusBtn.addEventListener("click",toggleBonus);
 refreshBtn.addEventListener("click",refreshCoins);
 locateBtn.addEventListener("click",startGPS);
 updateBonusUI();
-// Mostra subito le monete nella zona iniziale: il GPS non è necessario per visualizzarle.
+
+// Generate fallback markers immediately so the map never opens empty.
+drawCoins(fallbackPoints(DEFAULT_VIEW[0],DEFAULT_VIEW[1]));
+setStatus("Monete rosa visibili · attiva il GPS o sposta la mappa");
 generateCoins(DEFAULT_VIEW[0],DEFAULT_VIEW[1]);
-if("serviceWorker"in navigator&&location.protocol.startsWith("http")){
-  addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(console.warn));
+
+// V7 deliberately disables the old service worker to prevent stale app versions.
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.getRegistrations().then(regs=>regs.forEach(reg=>reg.unregister())).catch(()=>{});
+  if("caches" in window) caches.keys().then(keys=>keys.forEach(k=>caches.delete(k))).catch(()=>{});
 }
