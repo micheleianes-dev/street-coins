@@ -1,5 +1,5 @@
-/* STREET COINS V21 */
-const APP_VERSION="V21";
+/* STREET COINS V22 */
+const APP_VERSION="V22";
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
@@ -88,6 +88,7 @@ function startGPS(){
  gpsWatchdog=setTimeout(()=>{if(position===null||locate.disabled){if(watch!==null)navigator.geolocation.clearWatch(watch);watch=null;locate.disabled=false;locate.textContent="◎ Riprova GPS";say("Il telefono non sta fornendo la posizione. Attiva Posizione e autorizza Chrome ad accedere alla posizione precisa, poi riprova.");}},30000);
  try{watch=navigator.geolocation.watchPosition(p=>{
   if(gpsWatchdog){clearTimeout(gpsWatchdog);gpsWatchdog=null;}
+  try{
   const nextPosition={lat:p.coords.latitude,lon:p.coords.longitude},stamp=p.timestamp||Date.now(),previousFix=lastGpsFix;
   let speed=Number.isFinite(p.coords.speed)?p.coords.speed:0,derivedHeading=null;
   const newAccuracy=p.coords.accuracy||999;
@@ -98,7 +99,7 @@ function startGPS(){
   if(speed>0.75)playerMoving=true;else if(speed<0.4)playerMoving=false;
   const gpsHeading=Number.isFinite(p.coords.heading)&&speed>=0.7?p.coords.heading:null;
   const movementHeading=gpsHeading!==null?gpsHeading:derivedHeading;
-  lastGpsFix={position:nextPosition,time:stamp,accuracy:newAccuracy};position=nextPosition;accuracy=newAccuracy;
+  lastGpsFix={position:nextPosition,time:stamp,accuracy:newAccuracy};position=nextPosition;accuracy=newAccuracy;say("Posizione GPS ricevuta: aggiorno la mappa…");
   if(movementHeading!==null&&typeof map.setHeading==="function"){
    const delta=stableHeading===null?180:Math.abs(((movementHeading-stableHeading+540)%360)-180);
    if(stableHeading===null|| (delta>=5&&stamp-lastHeadingUpdate>=700)){
@@ -111,6 +112,7 @@ function startGPS(){
   if(window.playerMovingState===undefined)window.playerMovingState=playerMoving;
   if(!hasInitialGpsView){map.setView([position.lat,position.lon],17,{animate:false});hasInitialGpsView=true}recenter.disabled=false;locate.disabled=false;locate.textContent="◎ GPS attivo";
   say(dist(position,TRENT0)<4100?(accuracy>70?"GPS impreciso: raccolta in pausa":(!user?"GPS attivo · accedi per raccogliere":"GPS attivo · monete fisse di Trento")):"Le 100 monete si trovano a Trento e dintorni");collectNearby();updateCount();
+  }catch(err){console.error("Errore aggiornamento posizione",err);locate.disabled=false;locate.textContent="◎ GPS ricevuto";say("GPS ricevuto, ma errore nella mappa: "+(err.message||String(err)));}
  },e=>{if(gpsWatchdog){clearTimeout(gpsWatchdog);gpsWatchdog=null;}say(e.code===1?"Permesso GPS negato.":e.code===2?"Posizione GPS non disponibile.":"GPS lento: riprova all'aperto.");locate.disabled=false;locate.textContent="◎ Riprova GPS";if(watch!==null)navigator.geolocation.clearWatch(watch);watch=null},{enableHighAccuracy:true,maximumAge:0,timeout:30000})}catch(e){if(gpsWatchdog){clearTimeout(gpsWatchdog);gpsWatchdog=null;}watch=null;locate.disabled=false;locate.textContent="◎ Riprova GPS";say("Impossibile avviare il GPS: "+(e.message||"controlla i permessi del browser."))}
 }
 async function fetchTrentoWays(){
