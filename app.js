@@ -1,5 +1,5 @@
-/* STREET COINS V12 */
-const APP_VERSION="V12";
+/* STREET COINS V13 */
+const APP_VERSION="V13";
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
@@ -10,10 +10,33 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,sub
 L.control.zoom({position:"bottomright"}).addTo(map);
 const layer=L.layerGroup().addTo(map),$=id=>document.getElementById(id);
 map.on("click",e=>{const lat=e.latlng.lat,lon=e.latlng.lng;L.popup().setLatLng(e.latlng).setContent(`<div class="coord-popup"><b>Punto selezionato</b><br>Latitudine: ${lat.toFixed(6)}<br>Longitudine: ${lon.toFixed(6)}</div>`).openOn(map)});
-let user=null,admin=false,position=null,accuracy=999,watch=null,coins=[],collected=new Set(),bonusMode=false;
+let user=null,admin=false,position=null,accuracy=999,watch=null,coins=[],collected=new Set(),bonusMode=false,audioCtx=null;
 $("appVersion").textContent=APP_VERSION;
 const status=$("status"),locate=$("locateBtn"),account=$("accountBtn"),bonus=$("bonusBtn"),refresh=$("refreshBtn");
 function say(s){status.textContent=s}
+function playVictory(){
+ try{
+  const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
+  audioCtx=audioCtx||new AC();if(audioCtx.state==="suspended")audioCtx.resume();
+  const now=audioCtx.currentTime;
+  [[523.25,0],[659.25,.13],[783.99,.26],[1046.5,.42]].forEach(([f,t])=>{
+   const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type="sine";o.frequency.value=f;
+   g.gain.setValueAtTime(.0001,now+t);g.gain.exponentialRampToValueAtTime(.16,now+t+.025);g.gain.exponentialRampToValueAtTime(.0001,now+t+.34);
+   o.connect(g);g.connect(audioCtx.destination);o.start(now+t);o.stop(now+t+.36);
+  });
+ }catch(e){console.warn("Audio vittoria non disponibile",e)}
+}
+function showVictory(c){
+ const panel=$("victoryPanel"),img=$("victoryImage");
+ $("victoryTitle").textContent=c.name||c.code;
+ $("victoryDescription").textContent=c.description||"Hai trovato una nuova moneta!";
+ if(c.image_path){img.src=db.storage.from("coin-images").getPublicUrl(c.image_path).data.publicUrl;img.classList.remove("hidden")}
+ else{img.removeAttribute("src");img.classList.add("hidden")}
+ panel.classList.remove("hidden");playVictory();
+ const fx=$("fireworks");fx.innerHTML="";
+ for(let i=0;i<28;i++){const p=document.createElement("i");p.style.setProperty("--a",(Math.PI*2*i/28)+"rad");p.style.setProperty("--d",(55+Math.random()*95)+"px");p.style.setProperty("--h",Math.floor(Math.random()*360));fx.appendChild(p)}
+}
+
 function dist(a,b){const r=Math.PI/180,R=6371000,d1=(b.lat-a.lat)*r,d2=(b.lon-a.lon)*r,x=Math.sin(d1/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(d2/2)**2;return 2*R*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))}
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function updateCount(){$("coinCount").textContent=collected.size;$("bonusCount").textContent=1+Math.floor(collected.size/10);bonus.disabled=!user||!position}
@@ -33,7 +56,7 @@ async function collect(c){
  if(collected.has(c.id))return;
  let {error}=await db.from("coin_collections").insert({user_id:user.id,coin_id:c.id});
  if(error&&error.code!=="23505"){say("Raccolta non salvata: "+error.message);return}
- collected.add(c.id);c.marker?.setIcon(icon(c));updateCount();say("Moneta raccolta!"); 
+ collected.add(c.id);c.marker?.setIcon(icon(c));updateCount();say("Moneta raccolta!");showVictory(c); 
 }
 function collectNearby(){if(!position||!user||accuracy>35)return;for(const c of coins)if(!collected.has(c.id)&&dist(position,{lat:c.latitude,lon:c.longitude})<=Math.max(12,Math.min(18,accuracy*.45)))collect(c)}
 function startGPS(){
@@ -75,7 +98,8 @@ async function showAdmin(){
  $("coinList").innerHTML="";
  data.forEach(c=>{
   let d=document.createElement("div");d.className="coin-admin-row";
-  d.innerHTML=`<b>${esc(c.code)}</b><label>Nome <input type="text" maxlength="80" value="${esc(c.name||"")}" data-name placeholder="Nome della moneta"></label><label>Descrizione <textarea maxlength="500" data-description placeholder="Descrizione della moneta">${esc(c.description||"")}</textarea></label><label>Lat <input type="number" step=".000001" value="${c.latitude}" data-lat></label><label>Lon <input type="number" step=".000001" value="${c.longitude}" data-lon></label><label>Colore <input type="color" value="${esc(c.color||"#ff6eae")}" data-color></label><label>Immagine <input type="file" accept="image/png,image/jpeg,image/webp" data-file></label><button class="primary" data-save>Salva</button>`;
+  const preview=c.image_path?db.storage.from("coin-images").getPublicUrl(c.image_path).data.publicUrl:"";
+  d.innerHTML=`<b>${esc(c.code)}</b>${preview?`<img class="coin-admin-preview" src="${esc(preview)}" alt="Immagine attuale">`:'<p class="no-image">Nessuna immagine caricata</p>'}<label>Nome <input type="text" maxlength="80" value="${esc(c.name||"")}" data-name placeholder="Nome della moneta"></label><label>Descrizione <textarea maxlength="500" data-description placeholder="Descrizione della moneta">${esc(c.description||"")}</textarea></label><label>Lat <input type="number" step=".000001" value="${c.latitude}" data-lat></label><label>Lon <input type="number" step=".000001" value="${c.longitude}" data-lon></label><label>Colore <input type="color" value="${esc(c.color||"#ff6eae")}" data-color></label><label>Immagine <input type="file" accept="image/png,image/jpeg,image/webp" data-file></label><button class="primary" data-save>Salva</button>`;
   $("coinList").appendChild(d);
   d.querySelector("[data-save]").onclick=async()=>{
    let patch={name:d.querySelector("[data-name]").value.trim(),description:d.querySelector("[data-description]").value.trim(),latitude:Number(d.querySelector("[data-lat]").value),longitude:Number(d.querySelector("[data-lon]").value),color:d.querySelector("[data-color]").value};
@@ -87,7 +111,7 @@ async function showAdmin(){
  })
 }
 account.onclick=async()=>{if(!user){$("authPanel").classList.remove("hidden");return}if(admin){showAdmin();return}if(confirm("Vuoi uscire dall'account?")){await db.auth.signOut();await syncUser()}}
-$("authClose").onclick=()=>$("authPanel").classList.add("hidden");$("adminClose").onclick=()=>$("adminPanel").classList.add("hidden");
+$("authClose").onclick=()=>$("authPanel").classList.add("hidden");$("adminClose").onclick=()=>$("adminPanel").classList.add("hidden");$("adminBack").onclick=()=>$("adminPanel").classList.add("hidden");$("victoryNext").onclick=()=>$("victoryPanel").classList.add("hidden");
 $("login").onclick=async()=>{let r=await db.auth.signInWithPassword({email:$("email").value.trim(),password:$("password").value});$("authMsg").textContent=r.error?.message||"Accesso effettuato";if(!r.error){$("authPanel").classList.add("hidden");await syncUser();if(admin)showAdmin()}}
 $("signup").onclick=async()=>{let r=await db.auth.signUp({email:$("email").value.trim(),password:$("password").value});$("authMsg").textContent=r.error?.message||"Registrazione avviata: controlla la posta per confermare l'email."}
 $("seedCoins").onclick=seed;locate.onclick=startGPS;refresh.onclick=()=>loadCoins().then(n=>say(`${n} monete caricate`)).catch(e=>say(e.message));
