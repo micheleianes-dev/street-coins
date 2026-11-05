@@ -1,5 +1,5 @@
-/* STREET COINS V14 */
-const APP_VERSION="V14";
+/* STREET COINS V15 */
+const APP_VERSION="V15";
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
@@ -10,7 +10,7 @@ L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=
 L.control.zoom({position:"bottomright"}).addTo(map);
 const layer=L.layerGroup().addTo(map),$=id=>document.getElementById(id);
 map.on("click",e=>{const lat=e.latlng.lat,lon=e.latlng.lng;L.popup().setLatLng(e.latlng).setContent(`<div class="coord-popup"><b>Punto selezionato</b><br>Latitudine: ${lat.toFixed(6)}<br>Longitudine: ${lon.toFixed(6)}</div>`).openOn(map)});
-let user=null,admin=false,position=null,accuracy=999,watch=null,coins=[],collected=new Set(),bonusMode=false,audioCtx=null;
+let user=null,admin=false,position=null,accuracy=999,watch=null,coins=[],collected=new Set(),bonusMode=false,audioCtx=null,lastGpsFix=null,playerMoving=false;
 $("appVersion").textContent=APP_VERSION;
 const status=$("status"),locate=$("locateBtn"),account=$("accountBtn"),bonus=$("bonusBtn"),refresh=$("refreshBtn");
 function say(s){status.textContent=s}
@@ -40,8 +40,12 @@ function showVictory(c){
 function dist(a,b){const r=Math.PI/180,R=6371000,d1=(b.lat-a.lat)*r,d2=(b.lon-a.lon)*r,x=Math.sin(d1/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(d2/2)**2;return 2*R*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))}
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function updateCount(){$("coinCount").textContent=collected.size;$("bonusCount").textContent=1+Math.floor(collected.size/10);bonus.disabled=!user||!position}
+function birdIcon(moving){
+ const svg='<svg viewBox="0 0 64 64" role="img" aria-label="Uccellino giocatore"><path class="bird-branch" d="M9 49 Q29 46 55 49" fill="none" stroke="#80533e" stroke-width="3.5" stroke-linecap="round"/><path class="bird-legs" d="M29 42 L27 49 M38 42 L40 49" fill="none" stroke="#80533e" stroke-width="2.5" stroke-linecap="round"/><path class="bird-body" d="M15 34 Q15 19 31 18 Q45 17 49 30 Q48 42 34 44 Q20 45 15 34Z" fill="#ffbf45" stroke="#70472e" stroke-width="2.5"/><path class="bird-belly" d="M23 34 Q31 27 43 34 Q40 43 31 42 Q25 41 23 34Z" fill="#fff0c7"/><path class="bird-wing" d="M25 29 Q31 13 46 23 Q43 34 30 36 Q25 35 25 29Z" fill="#e98d35" stroke="#70472e" stroke-width="2.2" stroke-linejoin="round"/><circle cx="42" cy="25" r="2" fill="#392a28"/><path d="M49 29 L58 32 L49 35Z" fill="#ed7950" stroke="#70472e" stroke-width="1.5" stroke-linejoin="round"/></svg>';
+ return L.divIcon({className:'player-bird-icon '+(moving?'is-moving':'is-perched'),html:'<div class="bird-wrap">'+svg+'</div>',iconSize:[58,58],iconAnchor:[29,43]});
+}
 function icon(c){let inner=c.image_path?`<img src="${db.storage.from("coin-images").getPublicUrl(c.image_path).data.publicUrl}">`:"<span>★</span>";return L.divIcon({className:"",html:`<div class="coin-marker ${collected.has(c.id)?"collected":""}" style="background:${esc(c.color||"#ff6eae")}">${inner}</div>`,iconSize:[42,42],iconAnchor:[21,21]})}
-function draw(){layer.clearLayers();coins.forEach(c=>{c.marker=L.marker([c.latitude,c.longitude],{icon:icon(c)}).addTo(layer);c.marker.bindPopup(`<div class="coin-popup"><b>${esc(c.name||c.code)}</b><p>${esc(c.description||"Nessuna descrizione disponibile.")}</p>${collected.has(c.id)?'<small>Già raccolta da te</small>':""}</div>`);c.marker.on("click",()=>{if(bonusMode)collect(c)})})}
+function draw(){layer.clearLayers();coins.forEach(c=>{c.marker=L.marker([c.latitude,c.longitude],{icon:icon(c)}).addTo(layer);c.marker.bindPopup(`<div class="coin-popup"><b>${esc(c.name||c.code)}</b><p>${esc(c.description||"Nessuna descrizione disponibile.")}</p>${collected.has(c.id)?'<small>Già raccolta da te</small>':""}</div>`);c.marker.on("click",()=>{const el=c.marker.getElement()?.querySelector(".coin-marker");if(el){el.classList.remove("coin-tap");void el.offsetWidth;el.classList.add("coin-tap")}if(bonusMode)collect(c)})})}
 async function loadCoins(){let {data,error}=await db.from("coins").select("*").order("code");if(error)throw error;coins=data||[];draw();return coins.length}
 async function syncUser(){
  let {data:{session}}=await db.auth.getSession();user=session?.user||null;admin=false;collected=new Set();
@@ -64,9 +68,14 @@ function startGPS(){
  if(!navigator.geolocation){say("GPS non disponibile.");return}if(watch!==null)return;
  locate.disabled=true;locate.textContent="◎ Ricerca GPS…";say("Attendo la posizione GPS…");
  watch=navigator.geolocation.watchPosition(p=>{
-  position={lat:p.coords.latitude,lon:p.coords.longitude};accuracy=p.coords.accuracy||999;
-  if(!window.player){window.player=L.marker([position.lat,position.lon],{icon:L.divIcon({className:"",html:'<div class="player-dot"></div>',iconSize:[22,22],iconAnchor:[11,11]})}).addTo(map);window.circle=L.circle([position.lat,position.lon],{radius:accuracy,color:"#287cff",weight:1,fillOpacity:.07}).addTo(map)}
-  else{window.player.setLatLng([position.lat,position.lon]);window.circle.setLatLng([position.lat,position.lon]).setRadius(accuracy)}
+  const nextPosition={lat:p.coords.latitude,lon:p.coords.longitude},stamp=p.timestamp||Date.now();
+  let speed=Number.isFinite(p.coords.speed)?p.coords.speed:0;
+  if(!Number.isFinite(p.coords.speed)&&lastGpsFix){const seconds=(stamp-lastGpsFix.time)/1000;if(seconds>.2)speed=dist(lastGpsFix.position,nextPosition)/seconds}
+  if(speed>0.95)playerMoving=true;else if(speed<0.55)playerMoving=false;
+  lastGpsFix={position:nextPosition,time:stamp};position=nextPosition;accuracy=p.coords.accuracy||999;
+  if(!window.player){window.player=L.marker([position.lat,position.lon],{icon:birdIcon(playerMoving),zIndexOffset:1000}).addTo(map);window.circle=L.circle([position.lat,position.lon],{radius:accuracy,color:"#287cff",weight:1,fillOpacity:.07}).addTo(map)}
+  else{window.player.setLatLng([position.lat,position.lon]);if(window.playerMovingState!==playerMoving){window.player.setIcon(birdIcon(playerMoving));window.playerMovingState=playerMoving}window.circle.setLatLng([position.lat,position.lon]).setRadius(accuracy)}
+  if(window.playerMovingState===undefined)window.playerMovingState=playerMoving;
   map.setView([position.lat,position.lon],16);locate.disabled=false;locate.textContent="◎ GPS attivo";
   say(dist(position,TRENT0)<4100?(accuracy>35?"GPS impreciso: raccolta in pausa":"GPS attivo · monete fisse di Trento"):"Le 100 monete si trovano a Trento e dintorni");collectNearby();updateCount();
  },e=>{say(e.code===1?"Permesso GPS negato.":e.code===2?"Posizione GPS non disponibile.":"GPS lento: riprova all'aperto.");locate.disabled=false;locate.textContent="◎ Riprova GPS";if(watch!==null)navigator.geolocation.clearWatch(watch);watch=null},{enableHighAccuracy:true,maximumAge:10000,timeout:20000})
