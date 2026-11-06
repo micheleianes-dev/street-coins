@@ -264,3 +264,6 @@ button:disabled { opacity:.45;cursor:not-allowed; }
 @keyframes coinStickerShine{0%,58%{left:-65%;opacity:0}68%{opacity:.9}88%,100%{left:130%;opacity:0}}
 @media(hover:hover){.coin-sticker-wrap:hover .coin-sticker{transform:translateY(-5px) scale(1.08) rotate(-4deg);filter:saturate(1.18);}}
 @media(prefers-reduced-motion:reduce){.coin-sticker,.coin-sticker-shadow,.coin-sticker-shine{animation:none!important}}
+
+.coin-sticker.coin-sticker-tap{animation:coinStickerTap .42s cubic-bezier(.2,1.5,.4,1)!important;}
+@keyframes coinStickerTap{0%{transform:scale(1)}38%{transform:scale(1.18) rotate(-7deg)}68%{transform:scale(.94) rotate(4deg)}100%{transform:scale(1)}}
