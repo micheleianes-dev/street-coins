@@ -179,3 +179,20 @@ button:disabled { opacity:.45;cursor:not-allowed; }
 .avatar-preview{width:76px;height:76px;object-fit:cover;border:3px solid #553047;border-radius:50%;margin:8px 0}
 .profile-coin{align-items:flex-start;flex-direction:column;gap:4px}
 .profile-coin .collection-timestamp{font-weight:900;color:#70445c}
+
+
+/* V35 — movimento del giocatore: freccia direzionale e gambe animate */
+.player-avatar-icon{background:transparent!important;border:0!important}
+.player-avatar-marker{position:relative;width:50px;height:50px;overflow:visible;border:0;background:transparent;box-shadow:none}
+.player-avatar-face{position:absolute;inset:0;z-index:2;display:flex;align-items:center;justify-content:center;overflow:hidden;border:3px solid #fff;border-radius:50%;background:radial-gradient(circle at 32% 24%,#ffd9ec 0,#ff83bd 43%,#e83e91 82%);box-shadow:0 4px 0 #a92b68,0 6px 10px #61223f55,inset 0 0 0 2px #ffb9d9}
+.player-avatar-face img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.player-avatar-face span{font-size:25px;color:#fff;text-shadow:1px 2px 0 #b52b70}
+.player-direction-arrow{position:absolute;z-index:4;left:50%;top:50%;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:12px solid #287cff;filter:drop-shadow(0 1px 1px #fff) drop-shadow(0 2px 2px #174b91);transform:translate(-50%,-50%) rotate(var(--heading)) translateY(-29px);transform-origin:center;pointer-events:none}
+.player-leg{position:absolute;z-index:1;top:37px;width:5px;height:13px;border-radius:5px;background:#553047;opacity:0;transform-origin:top center;pointer-events:none}
+.leg-left{left:15px}.leg-right{right:15px}
+.player-avatar-marker.is-walking .player-leg{opacity:1}
+.player-avatar-marker.is-walking .leg-left{animation:playerLegLeft .24s ease-in-out infinite alternate}
+.player-avatar-marker.is-walking .leg-right{animation:playerLegRight .24s ease-in-out infinite alternate}
+@keyframes playerLegLeft{from{transform:rotate(28deg) translateY(0)}to{transform:rotate(-28deg) translateY(2px)}}
+@keyframes playerLegRight{from{transform:rotate(-28deg) translateY(2px)}to{transform:rotate(28deg) translateY(0)}}
+@media(prefers-reduced-motion:reduce){.player-avatar-marker .player-leg{animation:none!important}}
