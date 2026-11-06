@@ -121,3 +121,27 @@ button:disabled { opacity:.45;cursor:not-allowed; }
 
 /* STREET COINS V17 — pulsante ricentra sempre leggibile */
 .recenter-control{z-index:1200;touch-action:manipulation;pointer-events:auto}
+
+/* STREET COINS V26 — welcome screen */
+.welcome-modal{z-index:2500;background:linear-gradient(145deg,rgba(42,22,51,.78),rgba(76,37,74,.72));backdrop-filter:blur(5px)}
+.welcome-dialog{width:min(430px,100%);padding:24px 22px 20px;text-align:center;border:4px solid #553047;border-radius:30px;background:linear-gradient(160deg,#fffafd 0%,#ffe5f0 100%);box-shadow:0 8px 0 #553047,0 18px 45px #160d2455;animation:welcomePop .55s cubic-bezier(.2,1.4,.4,1) both}
+.welcome-logo{font-size:clamp(31px,9vw,45px);font-weight:1000;letter-spacing:1px;line-height:1.05;color:#553047;text-shadow:2px 3px 0 #ffc0dc;animation:logoWiggle 2.8s ease-in-out infinite}
+.welcome-logo span{color:#f04498;display:inline-block;animation:logoShine 2s ease-in-out infinite}
+.welcome-sparkle{font-size:24px;letter-spacing:12px;margin:0 0 5px;color:#f5a900;animation:sparkleFloat 2.2s ease-in-out infinite}
+.welcome-subtitle{margin:9px 0 0;color:#89516f;font-size:14px;font-weight:800}
+.welcome-bird{font-size:42px;margin:7px auto 5px;animation:birdHello 1.7s ease-in-out infinite}
+.welcome-dialog h2{font-size:19px;margin:0 0 12px}
+.welcome-dialog label{text-align:left;margin:9px 0;color:#70445c}
+.welcome-dialog input{padding:12px 13px;border:2px solid #e8b8cf;border-radius:13px;background:#fff;font:inherit;font-size:15px}
+.welcome-dialog input:focus{outline:3px solid #ff9fc8;border-color:#e84c97}
+.welcome-dialog button{width:100%;margin:7px 0 4px;padding:13px}
+.welcome-login{background:linear-gradient(135deg,#ff6eae,#ed438f)}
+.welcome-signup{background:#fff;color:#70445c;border-color:#70445c;box-shadow:0 4px 0 #70445c}
+.welcome-message{min-height:18px;margin:9px 0 2px;font-size:12px;font-weight:800;overflow-wrap:anywhere}
+.welcome-footnote{font-size:10px;color:#a16e89;margin:6px 0 0}
+@keyframes welcomePop{from{opacity:0;transform:translateY(18px) scale(.9)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes logoWiggle{0%,100%{transform:rotate(-1deg) scale(1)}50%{transform:rotate(1deg) scale(1.035)}}
+@keyframes logoShine{0%,100%{text-shadow:0 0 0 #ff9fc8}50%{text-shadow:0 0 12px #ff70b5}}
+@keyframes sparkleFloat{0%,100%{transform:translateY(0) rotate(-4deg)}50%{transform:translateY(-5px) rotate(5deg)}}
+@keyframes birdHello{0%,100%{transform:translateY(0) rotate(-8deg)}50%{transform:translateY(-7px) rotate(8deg)}}
+@media(prefers-reduced-motion:reduce){.welcome-dialog,.welcome-logo,.welcome-logo span,.welcome-sparkle,.welcome-bird{animation:none!important}}
