@@ -1,5 +1,5 @@
-/* STREET COINS V24 */
-const APP_VERSION="V24";
+/* STREET COINS V25 */
+const APP_VERSION="V25";
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
@@ -10,7 +10,7 @@ L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=
 L.control.zoom({position:"bottomright"}).addTo(map);
 const layer=L.layerGroup().addTo(map),$=id=>document.getElementById(id);
 map.on("click",e=>{const lat=e.latlng.lat,lon=e.latlng.lng;L.popup().setLatLng(e.latlng).setContent(`<div class="coord-popup"><b>Punto selezionato</b><br>Latitudine: ${lat.toFixed(6)}<br>Longitudine: ${lon.toFixed(6)}</div>`).openOn(map)});
-let user=null,admin=false,position=null,accuracy=999,watch=null,coins=[],collected=new Set(),pendingCollections=new Set(),bonusMode=false,audioCtx=null,lastGpsFix=null,headingAnchor=null,gpsWatchdog=null,playerMoving=false,hasInitialGpsView=false,stableHeading=null,lastHeadingUpdate=0;
+let user=null,admin=false,position=null,accuracy=999,watch=null,coins=[],collected=new Set(),pendingCollections=new Set(),bonusMode=false,audioCtx=null,lastGpsFix=null,headingAnchor=null,gpsWatchdog=null,playerMoving=false,movingSince=0,directionMarker=null,hasInitialGpsView=false,stableHeading=null,lastHeadingUpdate=0;
 $("appVersion").textContent=APP_VERSION;
 const status=$("status"),locate=$("locateBtn"),account=$("accountBtn"),bonus=$("bonusBtn"),refresh=$("refreshBtn"),recenter=$("recenterBtn");
 function say(s){status.textContent=s}
@@ -42,8 +42,20 @@ function bearingBetween(a,b){const r=Math.PI/180,lat1=a.lat*r,lat2=b.lat*r,dLon=
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function updateCount(){$("coinCount").textContent=collected.size;$("bonusCount").textContent=1+Math.floor(collected.size/10);bonus.disabled=!user||!position}
 function birdIcon(moving){
- const svg='<svg viewBox="0 0 64 64" role="img" aria-label="Uccellino giocatore"><path class="bird-branch" d="M9 49 Q29 46 55 49" fill="none" stroke="#80533e" stroke-width="3.5" stroke-linecap="round"/><path class="bird-legs" d="M29 42 L27 49 M38 42 L40 49" fill="none" stroke="#80533e" stroke-width="2.5" stroke-linecap="round"/><path class="bird-body" d="M15 34 Q15 19 31 18 Q45 17 49 30 Q48 42 34 44 Q20 45 15 34Z" fill="#ffbf45" stroke="#70472e" stroke-width="2.5"/><path class="bird-belly" d="M23 34 Q31 27 43 34 Q40 43 31 42 Q25 41 23 34Z" fill="#fff0c7"/><path class="bird-wing" d="M25 29 Q31 13 46 23 Q43 34 30 36 Q25 35 25 29Z" fill="#e98d35" stroke="#70472e" stroke-width="2.2" stroke-linejoin="round"/><circle cx="42" cy="25" r="2" fill="#392a28"/><path d="M49 29 L58 32 L49 35Z" fill="#ed7950" stroke="#70472e" stroke-width="1.5" stroke-linejoin="round"/></svg>';
- return L.divIcon({className:'player-bird-icon '+(moving?'is-moving':'is-perched'),html:'<div class="bird-wrap">'+svg+'</div>',iconSize:[58,58],iconAnchor:[29,43]});
+ const svg='<svg viewBox="0 0 64 64" role="img" aria-label="Uccello bianco visto dall’alto"><path class="bird-body" d="M32 5 C27 9 25 16 25 24 C17 23 8 27 3 34 C12 37 19 39 25 38 C25 47 28 54 32 60 C36 54 39 47 39 38 C45 39 52 37 61 34 C56 27 47 23 39 24 C39 16 37 9 32 5Z" fill="#fff" stroke="#344054" stroke-width="2.8" stroke-linejoin="round"/><path class="bird-wing" d="M25 27 C18 25 10 29 5 34 C13 36 19 36 25 35Z" fill="#f7f9fc" stroke="#344054" stroke-width="1.5" stroke-linejoin="round"/><path class="bird-wing" d="M39 27 C46 25 54 29 59 34 C51 36 45 36 39 35Z" fill="#f7f9fc" stroke="#344054" stroke-width="1.5" stroke-linejoin="round"/><path d="M29 12 L32 8 L35 12" fill="none" stroke="#d5dce5" stroke-width="1.5" stroke-linecap="round"/><circle cx="29" cy="20" r="1.4" fill="#344054"/><circle cx="35" cy="20" r="1.4" fill="#344054"/></svg>';
+ return L.divIcon({className:'player-bird-icon '+(moving?'is-moving':'is-perched'),html:'<div class="bird-wrap">'+svg+'</div>',iconSize:[58,58],iconAnchor:[29,32]});
+}
+function directionArrowIcon(heading){
+ const svg='<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2 L29 28 L16 21 L3 28 Z" fill="#287cff" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/></svg>';
+ return L.divIcon({className:"direction-arrow-icon",html:'<div class="direction-arrow" style="transform:rotate('+heading+'deg)">'+svg+'</div>',iconSize:[30,30],iconAnchor:[-12,15]});
+}
+function updateDirectionArrow(stamp,heading){
+ if(!playerMoving){movingSince=0;if(directionMarker&&map.hasLayer(directionMarker))map.removeLayer(directionMarker);directionMarker=null;return}
+ if(!movingSince)movingSince=stamp;
+ if(stamp-movingSince<2800||heading===null||!Number.isFinite(heading))return;
+ const arrowIcon=directionArrowIcon(heading);
+ if(!directionMarker||!map.hasLayer(directionMarker))directionMarker=L.marker([position.lat,position.lon],{icon:arrowIcon,interactive:false,zIndexOffset:1100}).addTo(map);
+ else{directionMarker.setLatLng([position.lat,position.lon]);directionMarker.setIcon(arrowIcon)}
 }
 function icon(c){let inner=c.image_path?`<img src="${db.storage.from("coin-images").getPublicUrl(c.image_path).data.publicUrl}">`:"<span>★</span>";return L.divIcon({className:"",html:`<div class="coin-marker ${collected.has(c.id)?"collected":""}" style="background:${esc(c.color||"#ff6eae")}">${inner}</div>`,iconSize:[42,42],iconAnchor:[21,21]})}
 function draw(){layer.clearLayers();coins.forEach(c=>{c.marker=L.marker([c.latitude,c.longitude],{icon:icon(c)}).addTo(layer);c.marker.bindPopup(`<div class="coin-popup"><b>${esc(c.name||c.code)}</b><p>${esc(c.description||"Nessuna descrizione disponibile.")}</p>${collected.has(c.id)?'<small>Già raccolta da te</small>':""}</div>`);c.marker.on("click",()=>{const el=c.marker.getElement()?.querySelector(".coin-marker");if(el){el.classList.remove("coin-tap");void el.offsetWidth;el.classList.add("coin-tap")}if(bonusMode||(position&&dist(position,{lat:c.latitude,lon:c.longitude})<=collectionRadius()))collect(c)})})}
@@ -101,6 +113,7 @@ function startGPS(){
   const movementHeading=gpsHeading!==null?gpsHeading:derivedHeading;
   lastGpsFix={position:nextPosition,time:stamp,accuracy:newAccuracy};position=nextPosition;accuracy=newAccuracy;say("Posizione GPS ricevuta: aggiorno la mappa…");
   if(movementHeading!==null){stableHeading=movementHeading;lastHeadingUpdate=stamp;}
+  updateDirectionArrow(stamp,movementHeading!==null?movementHeading:stableHeading);
   if(!window.player||!map.hasLayer(window.player)){
    window.player=L.marker([position.lat,position.lon],{icon:birdIcon(playerMoving),zIndexOffset:1000}).addTo(map);
    window.playerMovingState=playerMoving;
