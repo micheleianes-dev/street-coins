@@ -390,3 +390,79 @@ button:disabled { opacity:.45;cursor:not-allowed; }
   margin:0!important;
   padding:0!important;
 }
+
+
+/* V44 — cornice da trading card con dettagli geometrici nel colore della collezione */
+.coin-sticker{
+  border:2px solid #20202a!important;
+  border-radius:0!important;
+  background:linear-gradient(145deg,#343440,#101018 65%,#292936)!important;
+  box-shadow:0 0 0 1px #f4f0f4,0 3px 8px #17121c88!important;
+  overflow:hidden;
+}
+.coin-sticker img{
+  inset:5px!important;
+  width:calc(100% - 10px)!important;
+  height:calc(100% - 10px)!important;
+  object-fit:cover!important;
+  object-position:center!important;
+}
+.coin-sticker-placeholder{
+  position:absolute;
+  inset:5px;
+  width:auto!important;
+  height:auto!important;
+}
+.coin-card-frame{
+  position:absolute;
+  z-index:4;
+  inset:0;
+  pointer-events:none;
+  border:2px solid var(--coin-color);
+  background:
+    linear-gradient(var(--coin-color),var(--coin-color)) left 3px top 3px/13px 2px no-repeat,
+    linear-gradient(var(--coin-color),var(--coin-color)) left 3px top 3px/2px 13px no-repeat,
+    linear-gradient(var(--coin-color),var(--coin-color)) right 3px top 3px/13px 2px no-repeat,
+    linear-gradient(var(--coin-color),var(--coin-color)) right 3px top 3px/2px 13px no-repeat,
+    linear-gradient(var(--coin-color),var(--coin-color)) left 3px bottom 3px/13px 2px no-repeat,
+    linear-gradient(var(--coin-color),var(--coin-color)) left 3px bottom 3px/2px 13px no-repeat,
+    linear-gradient(var(--coin-color),var(--coin-color)) right 3px bottom 3px/13px 2px no-repeat,
+    linear-gradient(var(--coin-color),var(--coin-color)) right 3px bottom 3px/2px 13px no-repeat;
+}
+.coin-card-frame::before{
+  content:"";
+  position:absolute;
+  top:2px;
+  left:50%;
+  width:9px;
+  height:9px;
+  transform:translateX(-50%) rotate(45deg);
+  background:var(--coin-color);
+  box-shadow:0 0 0 2px #171720;
+}
+.coin-card-frame::after{
+  content:"";
+  position:absolute;
+  right:5px;
+  bottom:17px;
+  width:8px;
+  height:18px;
+  background:var(--coin-color);
+  clip-path:polygon(100% 0,100% 100%,0 72%,35% 50%,0 28%);
+  opacity:.95;
+}
+.coin-card-mark{
+  position:absolute;
+  z-index:5;
+  left:7px;
+  bottom:7px;
+  width:7px;
+  height:7px;
+  border:1px solid #fff;
+  background:var(--coin-color);
+  transform:rotate(45deg);
+  box-shadow:0 0 0 1px #181820;
+  pointer-events:none;
+}
+.coin-sticker-shine{z-index:6}
+.coin-sticker.collected .coin-card-frame{opacity:.7}
