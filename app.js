@@ -280,8 +280,8 @@ async function showAdmin(){
   $("categoryAdminList").appendChild(d);
   d.querySelector("[data-save]").onclick=async()=>{try{
    const newName=d.querySelector("[data-name]").value.trim();if(!newName)throw Error("Il nome è obbligatorio.");
-   const patch={name:newName,description:d.querySelector("[data-description]").value.trim(),color:d.querySelector("[data-color]").value,icon_symbol:d.querySelector("[data-icon-symbol]").value};
-   const f=d.querySelector("[data-file]").files[0];if(f)patch.image_path=await uploadCategoryImage(f,newName.toLowerCase().replace(/[^a-z0-9]+/g,"-"));const iconFile=d.querySelector("[data-icon-file]").files[0];if(iconFile)patch.icon_image_path=await uploadCategoryImage(iconFile,"icon-"+newName.toLowerCase().replace(/[^a-z0-9]+/g,"-"));else patch.icon_image_path=null;
+   const selectedIcon=d.querySelector("[data-icon-symbol]").value;const patch={name:newName,description:d.querySelector("[data-description]").value.trim(),color:d.querySelector("[data-color]").value,icon_symbol:selectedIcon,icon_image_path:cat.icon_image_path||null};
+   const f=d.querySelector("[data-file]").files[0];if(f)patch.image_path=await uploadCategoryImage(f,newName.toLowerCase().replace(/[^a-z0-9]+/g,"-"));const iconFile=d.querySelector("[data-icon-file]").files[0];if(iconFile)patch.icon_image_path=await uploadCategoryImage(iconFile,"icon-"+newName.toLowerCase().replace(/[^a-z0-9]+/g,"-"));else if(selectedIcon!==(cat.icon_symbol||"✦"))patch.icon_image_path=null;
    if(newName!==cat.name){const moved=await db.from("coins").update({category:newName,color:patch.color}).eq("category",cat.name);if(moved.error)throw moved.error}
    const saved=await db.from("categories").update(patch).eq("id",cat.id);if(saved.error)throw saved.error;
    await loadCoins();showAdmin();$("adminMsg").textContent="Collezione aggiornata.";
