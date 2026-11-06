@@ -214,3 +214,30 @@ button:disabled { opacity:.45;cursor:not-allowed; }
 .album-slot.is-missing .album-art{background:repeating-linear-gradient(135deg,#fff 0 7px,#f7edf2 7px 14px)}
 @media(min-width:430px){.album-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(min-width:700px){.album-grid{grid-template-columns:repeat(5,minmax(0,1fr))}}
+
+/* V37 — gestione categorie, contatore COINS e album categorie */
+.counter{cursor:pointer;min-width:142px;grid-template-columns:auto 1fr;row-gap:3px;pointer-events:auto}
+.counter-category-list{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:5px 8px;padding-top:4px;border-top:1px solid #efd4e1}
+.counter-category{display:inline-flex;align-items:center;gap:4px;font-size:10px;color:#553047}
+.counter-category i{width:9px;height:9px;border-radius:50%;border:1px solid #55304755;display:inline-block}
+.counter-category b{font-size:10px}
+.category-manager{border-style:solid;background:#fff8fc}
+.category-manager>p{font-size:11px;line-height:1.4;color:#956c82}
+.category-manager input,.category-manager textarea{display:block;width:100%;padding:9px;margin-top:4px;border:1px solid #d9b8ca;border-radius:8px;font:inherit}
+.category-manager label{display:block;font-size:11px;font-weight:800;margin:8px 0}
+.category-manager button{width:100%}
+.category-admin-row{display:grid;grid-template-columns:1fr 1fr;gap:7px;padding:10px;margin:10px 0;background:#fff;border:1px solid #e5cad8;border-radius:12px}
+.category-admin-row label{font-size:10px;margin:0}
+.category-admin-row input,.category-admin-row textarea{width:100%;padding:8px;border:1px solid #d9b8ca;border-radius:8px;font:inherit}
+.category-admin-row textarea{min-height:55px}
+.category-admin-row button,.category-admin-row img{grid-column:1/-1}
+.category-admin-preview{width:100%;max-height:130px;object-fit:cover;border-radius:10px}
+.coin-admin-row select{display:block;width:100%;padding:9px;margin-top:4px;border:1px solid #d9b8ca;border-radius:8px;background:white}
+.category-dialog{width:min(560px,100%)}
+.category-overview-card{display:grid;grid-template-columns:104px 1fr;gap:12px;padding:12px;margin:10px 0;background:white;border:2px solid var(--category-color,#ff6eae);border-radius:15px;align-items:center}
+.category-overview-card img{width:104px;height:90px;object-fit:cover;border-radius:10px;background:#f6edf2}
+.category-overview-card img.no-category-image{background:repeating-linear-gradient(135deg,#fff 0 8px,#f5eaf0 8px 16px)}
+.category-overview-card h3{margin:0 0 5px;font-size:16px}
+.category-overview-card p{margin:0 0 7px;font-size:12px;line-height:1.35;color:#80566c}
+.category-overview-card b{font-size:11px;color:#553047}
+@media(max-width:390px){.counter{min-width:126px;padding:8px}.counter-category{font-size:9px}.counter-category b{font-size:9px}}
