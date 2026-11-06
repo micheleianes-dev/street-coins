@@ -244,7 +244,7 @@ async function showCategoryOverview(){
 async function showAdmin(){
  $("adminPanel").classList.remove("hidden");$("adminMsg").textContent=user.email;
  let {data,error}=await db.from("coins").select("*").order("code");if(error){$("coinList").textContent=error.message;return}
- await loadCategories();
+ await loadCategories();$("newCoinCode").value=await nextCoinCode();
  const catSelect=$("newCoinCategory");catSelect.replaceChildren();categories.forEach(c=>{const o=document.createElement("option");o.value=c.name;o.textContent=c.name;catSelect.appendChild(o)});
  $("coinList").innerHTML="";$("categoryAdminList").replaceChildren();
  categories.forEach(cat=>{
