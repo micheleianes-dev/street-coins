@@ -1,11 +1,11 @@
-/* STREET COINS V25 */
-const APP_VERSION="V25";
+/* STREET COINS V26 */
+const APP_VERSION="V26";
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const TRENT0={lat:46.0679,lon:11.1211},SEED_RADIUS=3600;
 const ENDPOINTS=["https://overpass.private.coffee/api/interpreter","https://ovp.dresel.systems/api/interpreter","https://overpass-api.de/api/interpreter"];
-const map=L.map("map",{zoomControl:false,preferCanvas:true,zoomSnap:0.5,zoomDelta:0.5,minZoom:17,maxZoom:20}).setView([0,0],2);
+const map=L.map("map",{zoomControl:false,preferCanvas:true,zoomSnap:1,zoomDelta:1,minZoom:14,maxZoom:17}).setView([0,0],2);
 L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_52vs_1_1db3e835804d22b5902148c7",{maxZoom:20,subdomains:"abcd",attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'}).addTo(map);
 L.control.zoom({position:"bottomright"}).addTo(map);
 const layer=L.layerGroup().addTo(map),$=id=>document.getElementById(id);
@@ -66,7 +66,7 @@ async function syncUser(){
   const [a,c]=await Promise.all([db.from("admins").select("user_id").eq("user_id",user.id).maybeSingle(),db.from("coin_collections").select("coin_id").eq("user_id",user.id)]);
   admin=!!a.data;if(c.data)collected=new Set(c.data.map(x=>x.coin_id));
  }
- account.textContent=user?(admin?"Admin":"Account"):"Accedi";updateCount();draw();
+ account.textContent=user?(admin?"Admin":"Account"):"Accedi";updateCount();draw();if(user) $("authPanel").classList.add("hidden");
 }
 async function collect(c){
  if(!user){say("Accedi per raccogliere questa moneta.");$("authPanel").classList.remove("hidden");$("authMsg").textContent="Accedi o crea un account per salvare le monete.";return}
@@ -179,4 +179,4 @@ $("signup").onclick=async()=>{let r=await db.auth.signUp({email:$("email").value
 $("seedCoins").onclick=seed;locate.onclick=startGPS;recenter.onclick=()=>{if(position){map.setView([position.lat,position.lon],map.getZoom(),{animate:false})}};refresh.onclick=()=>loadCoins().then(n=>say(`${n} monete caricate`)).catch(e=>say(e.message));
 bonus.onclick=()=>{if(!user){$("authPanel").classList.remove("hidden");return}bonusMode=!bonusMode;bonus.classList.toggle("active",bonusMode);say(bonusMode?"Bonus attivo: tocca una moneta entro 200 metri.":"Bonus disattivato")};
 db.auth.onAuthStateChange(()=>setTimeout(syncUser,0));
-(async()=>{try{await syncUser();let n=await loadCoins();say(n?`${n} monete fisse caricate. Accedi e attiva il GPS.`:"Database pronto: accedi come amministratore e crea le 100 monete.");}catch(e){say("Errore database: "+e.message)}})();
+(async()=>{startGPS();try{await syncUser();let n=await loadCoins();if(!position)say(n?`${n} monete caricate. In attesa della posizione GPS…`:"Database pronto: accedi come amministratore e crea le 100 monete.");}catch(e){say("Errore database: "+e.message)}})();
