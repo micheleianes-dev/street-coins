@@ -501,3 +501,38 @@ button:disabled { opacity:.45;cursor:not-allowed; }
   left:6px;bottom:6px;width:6px;height:6px;
   box-shadow:0 0 0 1px #181820;
 }
+
+
+/* V47 — dettaglio Street Card e album interattivo */
+.album-slot.is-openable{cursor:pointer;transition:transform .16s,box-shadow .16s}
+.album-slot.is-openable:active{transform:scale(.97)}
+.album-slot.is-openable:focus-visible{outline:3px solid #553047;outline-offset:3px}
+.street-card-detail{z-index:3500}
+.street-card-detail-dialog{width:min(430px,100%);padding:22px 18px 20px}
+.street-card-detail-frame{
+  --coin-color:#ff6eae;
+  position:relative;
+  width:min(245px,78%);
+  aspect-ratio:3/4;
+  margin:12px auto 18px;
+  padding:7px;
+  background:linear-gradient(145deg,#3b3945,#101018 65%,#292936);
+  border:2px solid #22202a;
+  box-shadow:0 0 0 1px #fff,0 8px 18px #17121c55;
+}
+.street-card-detail-frame::before{
+  content:"";position:absolute;inset:3px;border:1px solid var(--coin-color);pointer-events:none;z-index:2;
+}
+.street-card-detail-frame img{
+  display:block;width:100%;height:100%;object-fit:cover;object-position:center;
+}
+.street-card-detail-placeholder{
+  width:100%;height:100%;display:grid;place-items:center;
+  color:var(--coin-color);font-size:64px;
+  background:linear-gradient(145deg,#fff,#eee2eb);
+}
+.street-card-detail-info{text-align:center}
+.street-card-detail-info>small{color:#956c82;font-size:11px}
+.street-card-detail-info h2{margin:5px 28px 8px!important}
+.street-card-detail-collection{margin:8px 0;color:#80566c;font-size:12px}
+#streetCardDetailDescription{font-size:13px;line-height:1.45;white-space:pre-wrap}

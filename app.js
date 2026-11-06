@@ -1,5 +1,5 @@
-/* STREET COINS V46 */
-const APP_VERSION="V46";
+/* STREET COINS V47 */
+const APP_VERSION="V47";
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
@@ -29,7 +29,7 @@ function playVictory(){
 function showVictory(c){
  const panel=$("victoryPanel"),img=$("victoryImage");
  $("victoryTitle").textContent=c.name||c.code;
- $("victoryDescription").textContent=c.description||"Hai trovato una nuova moneta!";
+ $("victoryDescription").textContent=c.description||"Hai trovato una nuova Street Card!";
  if(c.image_path){img.src=db.storage.from("coin-images").getPublicUrl(c.image_path).data.publicUrl;img.classList.remove("hidden")}
  else{img.removeAttribute("src");img.classList.add("hidden")}
  panel.classList.remove("hidden");playVictory();
@@ -81,13 +81,13 @@ async function syncUser(){
  updatePlayerMarker();account.textContent=user?(admin?"Admin":"Profilo"):"Accedi";refresh.textContent="Profilo";refresh.title="Apri il profilo giocatore";refresh.setAttribute("aria-label",refresh.title);updateCount();draw();
 }
 async function collect(c){
- if(!user){say("Accedi per raccogliere questa moneta.");$("authPanel").classList.remove("hidden");$("authMsg").textContent="Accedi o crea un account per salvare le monete.";return}
+ if(!user){say("Accedi per raccogliere questa Street Card.");$("authPanel").classList.remove("hidden");$("authMsg").textContent="Accedi o crea un account per salvare le Street Cards.";return}
  if(collected.has(c.id)||pendingCollections.has(c.id))return;
- pendingCollections.add(c.id);say("Raccolta della moneta in corso…");
+ pendingCollections.add(c.id);say("Raccolta della Street Card in corso…");
  try{
   const {data,error}=await db.from("coin_collections").insert({user_id:user.id,coin_id:c.id}).select("collected_at").single();
   if(error&&error.code!=="23505")throw error;
-  collected.add(c.id);if(data&&data.collected_at)collectionDates.set(c.id,data.collected_at);c.marker?.setIcon(icon(c));updateCount();updateGoalsIfVisible();say("Moneta raccolta!");showVictory(c);
+  collected.add(c.id);if(data&&data.collected_at)collectionDates.set(c.id,data.collected_at);c.marker?.setIcon(icon(c));updateCount();updateGoalsIfVisible();say("Street Card raccolta!");showVictory(c);
  }catch(e){say("Raccolta non completata: "+(e.message||"controlla la connessione e riprova."))}
  finally{pendingCollections.delete(c.id)}
 }
@@ -99,7 +99,7 @@ function collectNearby(){
   if(collected.has(c.id)||pendingCollections.has(c.id))continue;
   if(dist(position,{lat:c.latitude,lon:c.longitude})<=radius){
    if(user)collect(c);
-   else say("Sei vicino a una moneta! Accedi per raccoglierla.");
+   else say("Sei vicino a una Street Card! Accedi per raccoglierla.");
    break;
   }
  }
@@ -140,7 +140,7 @@ function startGPS(){
    window.circle.setRadius(accuracy);
   }
   if(!hasInitialGpsView){map.setView([position.lat,position.lon],17,{animate:false});hasInitialGpsView=true}recenter.disabled=false;locate.disabled=false;locate.textContent="◎ GPS attivo";
-  say(dist(position,TRENT0)<4100?(accuracy>70?"GPS impreciso: raccolta in pausa":(!user?"GPS attivo · accedi per raccogliere":"GPS attivo · monete fisse di Trento")):"Le 10 monete si trovano a Trento e dintorni");collectNearby();updateCount();
+  say(dist(position,TRENT0)<4100?(accuracy>70?"GPS impreciso: raccolta in pausa":(!user?"GPS attivo · accedi per raccogliere":"GPS attivo · Street Cards fisse di Trento")):"Le 10 Street Cards si trovano a Trento e dintorni");collectNearby();updateCount();
   }catch(err){console.error("Errore aggiornamento posizione",err);locate.disabled=false;locate.textContent="◎ GPS ricevuto";say("GPS ricevuto, ma errore nella mappa: "+(err.message||String(err)));}
  },e=>{if(gpsWatchdog){clearTimeout(gpsWatchdog);gpsWatchdog=null;}say(e.code===1?"Permesso GPS negato.":e.code===2?"Posizione GPS non disponibile.":"GPS lento: riprova all'aperto.");locate.disabled=false;locate.textContent="◎ Riprova GPS";if(watch!==null)navigator.geolocation.clearWatch(watch);watch=null},{enableHighAccuracy:true,maximumAge:0,timeout:30000})}catch(e){if(gpsWatchdog){clearTimeout(gpsWatchdog);gpsWatchdog=null;}watch=null;locate.disabled=false;locate.textContent="◎ Riprova GPS";say("Impossibile avviare il GPS: "+(e.message||"controlla i permessi del browser."))}
 }
@@ -154,16 +154,16 @@ function interpolate(nodes,spacing){let out=[],carry=0;for(let i=1;i<nodes.lengt
 async function seed(){
  $("seedCoins").disabled=true;$("adminMsg").textContent="Controllo e preparo le posizioni sulle strade di Trento…";
  try{
-  let {count,error}=await db.from("coins").select("*",{count:"exact",head:true});if(error)throw error;if(count){$("adminMsg").textContent=`Nel database sono già presenti ${count} monete. Non ne creo altre.`;return}
+  let {count,error}=await db.from("coins").select("*",{count:"exact",head:true});if(error)throw error;if(count){$("adminMsg").textContent=`Nel database sono già presenti ${count} Street Cards. Non ne creo altre.`;return}
   let ways=await fetchTrentoWays(),pts=[];ways.forEach(w=>{if(w.geometry?.length>1)pts.push(...interpolate(w.geometry,65))});
   pts=pts.filter(p=>dist(TRENT0,{lat:p.latitude,lon:p.longitude})<SEED_RADIUS*.98);
   for(let i=pts.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[pts[i],pts[j]]=[pts[j],pts[i]]}
   let chosen=[];for(let p of pts){if(chosen.every(q=>dist({lat:p.latitude,lon:p.longitude},{lat:q.latitude,lon:q.longitude})>45))chosen.push(p);if(chosen.length===10)break}
   if(chosen.length<10)throw Error(`Trovate solo ${chosen.length} posizioni. Riprova.`);
-  let rows=chosen.map((p,i)=>({code:`TR-${String(i+1).padStart(3,"0")}`,name:`Moneta di Trento ${i+1}`,description:"Una moneta da scoprire esplorando la città.",latitude:p.latitude,longitude:p.longitude,color:"#ff6eae"}));
+  let rows=chosen.map((p,i)=>({code:`TR-${String(i+1).padStart(3,"0")}`,name:`Street Card di Trento ${i+1}`,description:"Una Street Card da scoprire esplorando la città.",latitude:p.latitude,longitude:p.longitude,color:"#ff6eae"}));
   let ins=await db.from("coins").insert(rows);if(ins.error)throw ins.error;
-  await loadCoins();$("adminMsg").textContent="Create 10 monete condivise a Trento.";
- }catch(e){$("adminMsg").textContent=e.message||"Errore nella creazione delle monete"}
+  await loadCoins();$("adminMsg").textContent="Create 10 Street Cards condivise a Trento.";
+ }catch(e){$("adminMsg").textContent=e.message||"Errore nella creazione delle Street Cards"}
  finally{$("seedCoins").disabled=false}
 }
 
@@ -180,18 +180,34 @@ async function addCoin(){
   const result=await db.from("coins").insert({code,name,description,category,latitude,longitude,color:cat.color});
   if(result.error)throw result.error;
   $("newCoinName").value="";$("newCoinDescription").value="";$("newCoinLat").value="";$("newCoinLon").value="";
-  await loadCoins();$("adminMsg").textContent="Moneta "+code+" aggiunta.";showAdmin();
+  await loadCoins();$("adminMsg").textContent="Street Card "+code+" aggiunta.";showAdmin();
  }catch(e){$("adminMsg").textContent="Errore: "+e.message}
 }
 async function saveWalkingProgress(){if(!user)return;const value=Math.round(walkingDistanceM);const {error}=await db.from("player_progress").upsert({user_id:user.id,walking_distance_m:value,updated_at:new Date().toISOString()},{onConflict:"user_id"});if(error){console.warn("Salvataggio distanza non riuscito",error);return}lastProgressSave=value;updateGoalsIfVisible()}
 function updateGoalsIfVisible(){const box=$("profile-goals");if(box&&!box.classList.contains("hidden"))renderGoals()}
-function renderGoals(){const box=$("profileGoals");if(!box)return;box.replaceChildren();const goals=[{title:"Raccogli 5 monete",detail:"Trova cinque monete in giro per la città.",value:collected.size,target:5,unit:"monete"},{title:"Percorri 1 km in Street Coins",detail:"Cammina con il GPS attivo e accumula distanza.",value:walkingDistanceM,target:1000,unit:"m"}];goals.forEach(g=>{const current=Math.min(g.value,g.target),percent=Math.min(100,Math.round(current/g.target*100)),card=document.createElement("article");card.className="goal-card";const ring=document.createElement("div");ring.className="goal-ring";ring.style.setProperty("--progress",percent+"%");const inside=document.createElement("span");inside.textContent=percent+"%";ring.appendChild(inside);const info=document.createElement("div"),title=document.createElement("b"),detail=document.createElement("small"),count=document.createElement("strong");title.textContent=g.title;detail.textContent=g.detail;count.textContent=g.unit==="m"?Math.round(current)+" / 1000 m":current+" / "+g.target+" monete";info.append(title,detail,count);card.append(ring,info);box.appendChild(card)})}
+function renderGoals(){const box=$("profileGoals");if(!box)return;box.replaceChildren();const goals=[{title:"Raccogli 5 Street Cards",detail:"Trova cinque Street Cards in giro per la città.",value:collected.size,target:5,unit:"Street Cards"},{title:"Percorri 1 km in Street Coins",detail:"Cammina con il GPS attivo e accumula distanza.",value:walkingDistanceM,target:1000,unit:"m"}];goals.forEach(g=>{const current=Math.min(g.value,g.target),percent=Math.min(100,Math.round(current/g.target*100)),card=document.createElement("article");card.className="goal-card";const ring=document.createElement("div");ring.className="goal-ring";ring.style.setProperty("--progress",percent+"%");const inside=document.createElement("span");inside.textContent=percent+"%";ring.appendChild(inside);const info=document.createElement("div"),title=document.createElement("b"),detail=document.createElement("small"),count=document.createElement("strong");title.textContent=g.title;detail.textContent=g.detail;count.textContent=g.unit==="m"?Math.round(current)+" / 1000 m":current+" / "+g.target+" Street Cards";info.append(title,detail,count);card.append(ring,info);box.appendChild(card)})}
+
+function openStreetCardDetail(c){
+ if(!c||!collected.has(c.id))return;
+ const modal=$("streetCardDetail"),image=$("streetCardDetailImage"),placeholder=$("streetCardDetailPlaceholder");
+ $("streetCardDetailTitle").textContent=c.name||c.code;
+ $("streetCardDetailCode").textContent=c.code||"";
+ $("streetCardDetailCollection").textContent=c.category||"Generale";
+ $("streetCardDetailDescription").textContent=c.description||"Nessuna descrizione disponibile.";
+ const stamp=collectionDates.get(c.id);
+ $("streetCardDetailDate").textContent=stamp?"Raccolta il "+new Date(stamp).toLocaleString("it-IT",{dateStyle:"long",timeStyle:"short"}):"Street Card raccolta";
+ $("streetCardDetailFrame").style.setProperty("--coin-color",categoryColor(c.category,c.color));
+ if(c.image_path){image.src=categoryImage(c.image_path);image.alt=c.name||c.code;image.classList.remove("hidden");placeholder.classList.add("hidden")}
+ else{image.removeAttribute("src");image.classList.add("hidden");placeholder.classList.remove("hidden")}
+ modal.classList.remove("hidden");
+}
+
 async function showProfile(){
  if(!user){$("authPanel").classList.remove("hidden");return}
  const meta=user.user_metadata||{},name=meta.display_name||meta.full_name||meta.name||meta.nickname||(user.email||"").split("@")[0]||"Giocatore";
  $("profileName").textContent=name;$("profileEmail").textContent=user.email||"";$("profileAvatar").replaceChildren();
  if(avatarUrl){const img=document.createElement("img");img.src=avatarUrl;img.alt="Avatar";$("profileAvatar").appendChild(img)}else{$("profileAvatar").textContent="★"}
- $("profileStats").textContent=collected.size+" / "+coins.length+" monete raccolte";renderGoals();
+ $("profileStats").textContent=collected.size+" / "+coins.length+" Street Cards raccolte";renderGoals();
  const list=$("profileCollection");list.replaceChildren();
  const groups=new Map();coins.forEach(c=>{const category=(c.category||"Generale").trim()||"Generale";if(!groups.has(category))groups.set(category,[]);groups.get(category).push(c)});
  if(!groups.size){const p=document.createElement("p");p.className="profile-empty";p.textContent="L'album è ancora vuoto.";list.appendChild(p)}
@@ -204,6 +220,7 @@ async function showProfile(){
    else{const mark=document.createElement("span");mark.textContent=owned?"★":"?";art.appendChild(mark)}
    const label=document.createElement("b");label.textContent=owned?(c.name||c.code):"Da trovare";
    slot.append(art,label);
+   if(owned){slot.classList.add("is-openable");slot.setAttribute("role","button");slot.tabIndex=0;slot.setAttribute("aria-label","Apri Street Card "+(c.name||c.code));slot.onclick=()=>openStreetCardDetail(c);slot.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openStreetCardDetail(c)}}}
    if(owned){const stamp=document.createElement("small");const collectedAt=collectionDates.get(c.id);stamp.textContent=collectedAt?new Date(collectedAt).toLocaleString("it-IT",{dateStyle:"short",timeStyle:"short"}):"Raccolta";slot.appendChild(stamp)}
    grid.appendChild(slot);
   });section.appendChild(grid);list.appendChild(section);
@@ -243,7 +260,7 @@ async function showCategoryOverview(){
  await loadCategories();const panel=$("categoryPanel"),list=$("categoryOverview");list.replaceChildren();
  categories.forEach(cat=>{const items=coins.filter(c=>(c.category||"Generale")===cat.name),got=items.filter(c=>collected.has(c.id)).length,card=document.createElement("article");card.className="category-overview-card";card.style.setProperty("--category-color",cat.color||"#ff6eae");
   const img=document.createElement("img");img.src=categoryImage(cat.image_path)||"";img.alt=cat.name;if(!cat.image_path)img.className="no-category-image";
-  const body=document.createElement("div"),title=document.createElement("h3"),desc=document.createElement("p"),stats=document.createElement("b");title.textContent=cat.name;desc.textContent=cat.description||"Nessuna descrizione.";stats.textContent=got+" / "+items.length+" coins raccolte";body.append(title,desc,stats);card.append(img,body);list.appendChild(card);
+  const body=document.createElement("div"),title=document.createElement("h3"),desc=document.createElement("p"),stats=document.createElement("b");title.textContent=cat.name;desc.textContent=cat.description||"Nessuna descrizione.";stats.textContent=got+" / "+items.length+" Street Cards raccolte";body.append(title,desc,stats);card.append(img,body);list.appendChild(card);
  });panel.classList.remove("hidden");
 }
 async function showAdmin(){
@@ -264,14 +281,14 @@ async function showAdmin(){
    const saved=await db.from("categories").update(patch).eq("id",cat.id);if(saved.error)throw saved.error;
    await loadCoins();showAdmin();$("adminMsg").textContent="Collezione aggiornata.";
   }catch(e){$("adminMsg").textContent=e.message}};
-  d.querySelector("[data-delete]").onclick=async()=>{const used=coins.some(c=>(c.category||"Generale")===cat.name);if(used){$("adminMsg").textContent="Prima assegna le monete a un'altra collezione.";return}if(cat.name==="Generale"){ $("adminMsg").textContent="La collezione Generale non può essere eliminata.";return}if(!confirm("Eliminare la collezione "+cat.name+"?"))return;const del=await db.from("categories").delete().eq("id",cat.id);if(del.error){$("adminMsg").textContent=del.error.message;return}await loadCategories();showAdmin()};
+  d.querySelector("[data-delete]").onclick=async()=>{const used=coins.some(c=>(c.category||"Generale")===cat.name);if(used){$("adminMsg").textContent="Prima assegna le Street Cards a un'altra collezione.";return}if(cat.name==="Generale"){ $("adminMsg").textContent="La collezione Generale non può essere eliminata.";return}if(!confirm("Eliminare la collezione "+cat.name+"?"))return;const del=await db.from("categories").delete().eq("id",cat.id);if(del.error){$("adminMsg").textContent=del.error.message;return}await loadCategories();showAdmin()};
  });
  data.forEach(c=>{
   let d=document.createElement("div");d.className="coin-admin-row";
   const preview=c.image_path?categoryImage(c.image_path):"";
-  d.innerHTML='<b>'+esc(c.code)+'</b>'+(preview?'<img class="coin-admin-preview" src="'+esc(preview)+'" alt="Immagine attuale">':'<p class="no-image">Nessuna immagine caricata</p>')+'<label>Nome <input type="text" maxlength="80" value="'+esc(c.name||"")+'" data-name></label><label>Collezione '+categorySelect(c.category||"Generale")+'</label><label>Descrizione <textarea maxlength="500" data-description>'+esc(c.description||"")+'</textarea></label><label>Lat <input type="number" step=".000001" value="'+c.latitude+'" data-lat></label><label>Lon <input type="number" step=".000001" value="'+c.longitude+'" data-lon></label><label>Immagine <input type="file" accept="image/png,image/jpeg,image/webp" data-file></label><button class="primary" data-save>Salva</button><button class="danger" data-delete>Rimuovi moneta</button>';
+  d.innerHTML='<b>'+esc(c.code)+'</b>'+(preview?'<img class="coin-admin-preview" src="'+esc(preview)+'" alt="Immagine attuale">':'<p class="no-image">Nessuna immagine caricata</p>')+'<label>Nome <input type="text" maxlength="80" value="'+esc(c.name||"")+'" data-name></label><label>Collezione '+categorySelect(c.category||"Generale")+'</label><label>Descrizione <textarea maxlength="500" data-description>'+esc(c.description||"")+'</textarea></label><label>Lat <input type="number" step=".000001" value="'+c.latitude+'" data-lat></label><label>Lon <input type="number" step=".000001" value="'+c.longitude+'" data-lon></label><label>Immagine <input type="file" accept="image/png,image/jpeg,image/webp" data-file></label><button class="primary" data-save>Salva</button><button class="danger" data-delete>Rimuovi Street Card</button>';
   $("coinList").appendChild(d);
-  d.querySelector("[data-delete]").onclick=async()=>{if(!confirm("Rimuovere questa moneta dal gioco?"))return;const del=await db.from("coins").delete().eq("id",c.id);if(del.error){$("adminMsg").textContent=del.error.message;return}await loadCoins();showAdmin()};
+  d.querySelector("[data-delete]").onclick=async()=>{if(!confirm("Rimuovere questa Street Card dal gioco?"))return;const del=await db.from("coins").delete().eq("id",c.id);if(del.error){$("adminMsg").textContent=del.error.message;return}await loadCoins();showAdmin()};
   d.querySelector("[data-save]").onclick=async()=>{
    const patch={name:d.querySelector("[data-name]").value.trim(),category:d.querySelector("[data-category]").value,description:d.querySelector("[data-description]").value.trim(),latitude:Number(d.querySelector("[data-lat]").value),longitude:Number(d.querySelector("[data-lon]").value)};
    let f=d.querySelector("[data-file]").files[0];
@@ -284,10 +301,10 @@ async function showAdmin(){
 function setAdminTab(tab){document.querySelectorAll("[data-admin-tab]").forEach(b=>b.classList.toggle("active",b.dataset.adminTab===tab));$("admin-collections").classList.toggle("hidden",tab!=="collections");$("admin-coins").classList.toggle("hidden",tab!=="coins")}
 document.querySelectorAll("[data-admin-tab]").forEach(btn=>btn.onclick=()=>setAdminTab(btn.dataset.adminTab));
 account.onclick=async()=>{if(!user){$("authPanel").classList.remove("hidden");return}if(admin){showAdmin();return}showProfile()}
-$("authClose").onclick=()=>$("authPanel").classList.add("hidden");$("profileClose").onclick=()=>$("profilePanel").classList.add("hidden");document.querySelectorAll("[data-profile-tab]").forEach(btn=>btn.onclick=()=>{document.querySelectorAll("[data-profile-tab]").forEach(x=>x.classList.toggle("active",x===btn));document.querySelectorAll(".profile-tab-content").forEach(x=>x.classList.toggle("hidden",x.id!=="profile-"+btn.dataset.profileTab))});$("adminClose").onclick=()=>$("adminPanel").classList.add("hidden");$("categoryCounter").onclick=showCategoryOverview;$("categoryClose").onclick=()=>$("categoryPanel").classList.add("hidden");$("addCategory").onclick=saveNewCategory;$("adminBack").onclick=()=>$("adminPanel").classList.add("hidden");$("victoryNext").onclick=()=>$("victoryPanel").classList.add("hidden");
+$("streetCardDetailClose").onclick=()=>$("streetCardDetail").classList.add("hidden");$("streetCardDetail").onclick=e=>{if(e.target===$("streetCardDetail"))$("streetCardDetail").classList.add("hidden")};$("authClose").onclick=()=>$("authPanel").classList.add("hidden");$("profileClose").onclick=()=>$("profilePanel").classList.add("hidden");document.querySelectorAll("[data-profile-tab]").forEach(btn=>btn.onclick=()=>{document.querySelectorAll("[data-profile-tab]").forEach(x=>x.classList.toggle("active",x===btn));document.querySelectorAll(".profile-tab-content").forEach(x=>x.classList.toggle("hidden",x.id!=="profile-"+btn.dataset.profileTab))});$("adminClose").onclick=()=>$("adminPanel").classList.add("hidden");$("categoryCounter").onclick=showCategoryOverview;$("categoryClose").onclick=()=>$("categoryPanel").classList.add("hidden");$("addCategory").onclick=saveNewCategory;$("adminBack").onclick=()=>$("adminPanel").classList.add("hidden");$("victoryNext").onclick=()=>$("victoryPanel").classList.add("hidden");
 $("login").onclick=async()=>{let r=await db.auth.signInWithPassword({email:$("email").value.trim(),password:$("password").value});$("authMsg").textContent=r.error?.message||"Accesso effettuato";if(!r.error){$("authPanel").classList.add("hidden");await syncUser();if(admin)showAdmin()}}
 $("signup").onclick=async()=>{let r=await db.auth.signUp({email:$("email").value.trim(),password:$("password").value});$("authMsg").textContent=r.error?.message||"Registrazione avviata: controlla la posta per confermare l'email."}
 $("avatarUploadBtn").onclick=uploadAvatar;$("avatarFile").onchange=()=>{const f=$("avatarFile").files[0];if(f){const preview=$("avatarPreview");preview.src=URL.createObjectURL(f);preview.classList.remove("hidden");$("profileInfoMsg").textContent="Anteprima pronta: premi Salva avatar."}};$("seedCoins").onclick=seed;$("addCoin").onclick=addCoin;locate.onclick=startGPS;recenter.onclick=()=>{if(position){map.setView([position.lat,position.lon],map.getZoom(),{animate:false})}};refresh.onclick=()=>showProfile();$("adminShortcut").onclick=()=>{if(admin){showAdmin();return}if(!user){$("authPanel").classList.remove("hidden");$("authMsg").textContent="Accedi con un account amministratore per aprire questo pannello.";return}say("Accesso riservato agli amministratori.")};
-bonus.onclick=()=>{if(!user){$("authPanel").classList.remove("hidden");return}bonusMode=!bonusMode;bonus.classList.toggle("active",bonusMode);say(bonusMode?"Bonus attivo: tocca una moneta entro 200 metri.":"Bonus disattivato")};
+bonus.onclick=()=>{if(!user){$("authPanel").classList.remove("hidden");return}bonusMode=!bonusMode;bonus.classList.toggle("active",bonusMode);say(bonusMode?"Bonus attivo: tocca una Street Card entro 200 metri.":"Bonus disattivato")};
 db.auth.onAuthStateChange(()=>setTimeout(syncUser,0));
-(async()=>{startGPS();try{await syncUser();let n=await loadCoins();if(!position)say(n?`${n} monete caricate. In attesa della posizione GPS…`:"Database pronto: accedi come amministratore e crea le 10 monete.");}catch(e){say("Errore database: "+e.message)}})();
+(async()=>{startGPS();try{await syncUser();let n=await loadCoins();if(!position)say(n?`${n} Street Cards caricate. In attesa della posizione GPS…`:"Database pronto: accedi come amministratore e crea le 10 monete.");}catch(e){say("Errore database: "+e.message)}})();
