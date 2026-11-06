@@ -207,7 +207,7 @@ function openStreetCardDetail(c){
  modal.classList.remove("hidden");
 }
 
-async function albumCardMarkup(c,owned){
+function albumCardMarkup(c,owned){
  const color=categoryColor(c.category,c.color),mark=collectionIconMarkup(c.category),photo=owned&&c.image_path?'<img src="'+esc(categoryImage(c.image_path))+'" alt="">':'<span class="coin-sticker-placeholder">'+(owned?"✦":"?")+'</span>';
  return '<div class="album-card-display '+(owned?"is-owned":"is-locked")+'" style="--coin-color:'+esc(color)+'"><div class="coin-sticker '+(owned?"collected":"")+'">'+photo+'<i class="coin-sticker-shine"></i><i class="coin-card-frame"></i><i class="coin-card-emblem">'+mark+'</i></div></div>';
 }
