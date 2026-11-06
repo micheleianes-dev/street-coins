@@ -145,3 +145,6 @@ button:disabled { opacity:.45;cursor:not-allowed; }
 @keyframes sparkleFloat{0%,100%{transform:translateY(0) rotate(-4deg)}50%{transform:translateY(-5px) rotate(5deg)}}
 @keyframes birdHello{0%,100%{transform:translateY(0) rotate(-8deg)}50%{transform:translateY(-7px) rotate(8deg)}}
 @media(prefers-reduced-motion:reduce){.welcome-dialog,.welcome-logo,.welcome-logo span,.welcome-sparkle,.welcome-bird{animation:none!important}}
+
+/* V28 — equal welcome action typography */
+.welcome-dialog .welcome-signup,.welcome-dialog .welcome-login{font-size:14px;font-weight:900;letter-spacing:.2px}
