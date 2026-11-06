@@ -1,5 +1,5 @@
-/* STREET COINS V29 */
-const APP_VERSION="V29";
+/* STREET COINS V30 */
+const APP_VERSION="V30";
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
@@ -146,13 +146,32 @@ async function seed(){
   let ways=await fetchTrentoWays(),pts=[];ways.forEach(w=>{if(w.geometry?.length>1)pts.push(...interpolate(w.geometry,65))});
   pts=pts.filter(p=>dist(TRENT0,{lat:p.latitude,lon:p.longitude})<SEED_RADIUS*.98);
   for(let i=pts.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[pts[i],pts[j]]=[pts[j],pts[i]]}
-  let chosen=[];for(let p of pts){if(chosen.every(q=>dist({lat:p.latitude,lon:p.longitude},{lat:q.latitude,lon:q.longitude})>45))chosen.push(p);if(chosen.length===100)break}
-  if(chosen.length!==10)throw Error(`Trovate solo ${chosen.length} posizioni. Riprova.`);
+  let chosen=[];for(let p of pts){if(chosen.every(q=>dist({lat:p.latitude,lon:p.longitude},{lat:q.latitude,lon:q.longitude})>45))chosen.push(p);if(chosen.length===10)break}
+  if(chosen.length<10)throw Error(`Trovate solo ${chosen.length} posizioni. Riprova.`);
   let rows=chosen.map((p,i)=>({code:`TR-${String(i+1).padStart(3,"0")}`,name:`Moneta di Trento ${i+1}`,description:"Una moneta da scoprire esplorando la città.",latitude:p.latitude,longitude:p.longitude,color:"#ff6eae"}));
   let ins=await db.from("coins").insert(rows);if(ins.error)throw ins.error;
   await loadCoins();$("adminMsg").textContent="Create 10 monete condivise a Trento.";
  }catch(e){$("adminMsg").textContent=e.message||"Errore nella creazione delle monete"}
  finally{$("seedCoins").disabled=false}
+}
+async function resetAndSeed(){
+ const btn=$("resetCoins");btn.disabled=true;
+ $("adminMsg").textContent="Reset in corso: elimino monete e raccolte precedenti…";
+ try{
+  const existing=await db.from("coins").select("id");
+  if(existing.error)throw existing.error;
+  const ids=(existing.data||[]).map(x=>x.id);
+  if(ids.length){
+   const removedCollections=await db.from("coin_collections").delete().in("coin_id",ids);
+   if(removedCollections.error)throw Error("Non riesco a cancellare le raccolte precedenti: "+removedCollections.error.message);
+   const removedCoins=await db.from("coins").delete().in("id",ids);
+   if(removedCoins.error)throw Error("Non riesco a cancellare le vecchie monete: "+removedCoins.error.message);
+  }
+  coins=[];collected=new Set();draw();
+  $("adminMsg").textContent="Database pulito. Creo 10 nuove monete casuali sulle strade di Trento…";
+  await seed();
+ }catch(e){$("adminMsg").textContent="Reset non completato: "+(e.message||String(e))}
+ finally{btn.disabled=false}
 }
 async function addCoin(){
  const code=$("newCoinCode").value.trim(),name=$("newCoinName").value.trim(),description=$("newCoinDescription").value.trim(),latitude=Number($("newCoinLat").value),longitude=Number($("newCoinLon").value),color=$("newCoinColor").value;
@@ -197,7 +216,7 @@ account.onclick=async()=>{if(!user){$("authPanel").classList.remove("hidden");re
 $("authClose").onclick=()=>$("authPanel").classList.add("hidden");$("profileClose").onclick=()=>$("profilePanel").classList.add("hidden");document.querySelectorAll("[data-profile-tab]").forEach(btn=>btn.onclick=()=>{document.querySelectorAll("[data-profile-tab]").forEach(x=>x.classList.toggle("active",x===btn));document.querySelectorAll(".profile-tab-content").forEach(x=>x.classList.toggle("hidden",x.id!=="profile-"+btn.dataset.profileTab))});$("adminClose").onclick=()=>$("adminPanel").classList.add("hidden");$("adminBack").onclick=()=>$("adminPanel").classList.add("hidden");$("victoryNext").onclick=()=>$("victoryPanel").classList.add("hidden");
 $("login").onclick=async()=>{let r=await db.auth.signInWithPassword({email:$("email").value.trim(),password:$("password").value});$("authMsg").textContent=r.error?.message||"Accesso effettuato";if(!r.error){$("authPanel").classList.add("hidden");await syncUser();if(admin)showAdmin()}}
 $("signup").onclick=async()=>{let r=await db.auth.signUp({email:$("email").value.trim(),password:$("password").value});$("authMsg").textContent=r.error?.message||"Registrazione avviata: controlla la posta per confermare l'email."}
-$("seedCoins").onclick=seed;$("addCoin").onclick=addCoin;locate.onclick=startGPS;recenter.onclick=()=>{if(position){map.setView([position.lat,position.lon],map.getZoom(),{animate:false})}};refresh.onclick=()=>loadCoins().then(n=>say(`${n} monete caricate`)).catch(e=>say(e.message));
+$("seedCoins").onclick=seed;$("resetCoins").onclick=resetAndSeed;$("addCoin").onclick=addCoin;locate.onclick=startGPS;recenter.onclick=()=>{if(position){map.setView([position.lat,position.lon],map.getZoom(),{animate:false})}};refresh.onclick=()=>account.onclick();
 bonus.onclick=()=>{if(!user){$("authPanel").classList.remove("hidden");return}bonusMode=!bonusMode;bonus.classList.toggle("active",bonusMode);say(bonusMode?"Bonus attivo: tocca una moneta entro 200 metri.":"Bonus disattivato")};
 db.auth.onAuthStateChange(()=>setTimeout(syncUser,0));
 (async()=>{startGPS();try{await syncUser();let n=await loadCoins();if(!position)say(n?`${n} monete caricate. In attesa della posizione GPS…`:"Database pronto: accedi come amministratore e crea le 100 monete.");}catch(e){say("Errore database: "+e.message)}})();
