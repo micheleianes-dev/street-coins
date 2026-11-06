@@ -1,5 +1,5 @@
-/* STREET COINS V44 */
-const APP_VERSION="V44";
+/* STREET COINS V45 */
+const APP_VERSION="V45";
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);

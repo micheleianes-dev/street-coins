@@ -466,3 +466,38 @@ button:disabled { opacity:.45;cursor:not-allowed; }
 }
 .coin-sticker-shine{z-index:6}
 .coin-sticker.collected .coin-card-frame{opacity:.7}
+
+
+/* V45 — cornice più leggera, immagine più ampia */
+.coin-sticker{
+  border-width:1px!important;
+}
+.coin-sticker img{
+  inset:3px!important;
+  width:calc(100% - 6px)!important;
+  height:calc(100% - 6px)!important;
+}
+.coin-sticker-placeholder{inset:3px}
+.coin-card-frame{border-width:1px}
+.coin-card-frame{
+  background:
+    linear-gradient(var(--coin-color),var(--coin-color)) left 2px top 2px/10px 1px no-repeat,
+    linear-gradient(var(--coin-color),var(--coin-color)) left 2px top 2px/1px 10px no-repeat,
+    linear-gradient(var(--coin-color),var(--coin-color)) right 2px top 2px/10px 1px no-repeat,
+    linear-gradient(var(--coin-color),var(--coin-color)) right 2px top 2px/1px 10px no-repeat,
+    linear-gradient(var(--coin-color),var(--coin-color)) left 2px bottom 2px/10px 1px no-repeat,
+    linear-gradient(var(--coin-color),var(--coin-color)) left 2px bottom 2px/1px 10px no-repeat,
+    linear-gradient(var(--coin-color),var(--coin-color)) right 2px bottom 2px/10px 1px no-repeat,
+    linear-gradient(var(--coin-color),var(--coin-color)) right 2px bottom 2px/1px 10px no-repeat;
+}
+.coin-card-frame::before{
+  width:7px;height:7px;
+  box-shadow:0 0 0 1px #171720;
+}
+.coin-card-frame::after{
+  right:4px;bottom:16px;width:6px;height:14px;
+}
+.coin-card-mark{
+  left:6px;bottom:6px;width:6px;height:6px;
+  box-shadow:0 0 0 1px #181820;
+}
