@@ -164,3 +164,18 @@ button:disabled { opacity:.45;cursor:not-allowed; }
 /* V33 — navigazione sempre visibile */
 .profile-shortcut,.admin-shortcut{display:flex!important;align-items:center;justify-content:center;visibility:visible!important;opacity:1!important;pointer-events:auto!important;position:relative;z-index:1300;flex:0 0 66px;min-width:66px;height:auto;align-self:stretch;padding:9px 5px;background:#fff8fc;color:#553047;border:3px solid #553047;border-radius:18px;font-size:12px;font-weight:1000;box-shadow:0 5px 0 #553047,0 8px 14px #55304730;white-space:nowrap}.admin-shortcut{background:#b9e9ff;color:#28475a;border-color:#28475a;box-shadow:0 5px 0 #28475a,0 8px 14px #28475a30}.controls{gap:6px}.bonus{min-width:64px;padding:9px 6px}.bonus small{font-size:8px}.controls .primary{padding:10px 7px;font-size:12px}
 @media(min-width:700px){.profile-shortcut,.admin-shortcut{flex-basis:78px;min-width:78px;font-size:13px}.controls{width:440px}}
+
+
+/* V34 — avatar giocatore e data raccolta */
+.player-avatar-icon{background:transparent!important;border:0!important}
+.player-avatar-marker{width:50px;height:50px;display:flex;align-items:center;justify-content:center;overflow:hidden;border:3px solid #fff;border-radius:50%;background:radial-gradient(circle at 32% 24%,#ffd9ec 0,#ff83bd 43%,#e83e91 82%);box-shadow:0 4px 0 #a92b68,0 6px 10px #61223f55,inset 0 0 0 2px #ffb9d9}
+.player-avatar-marker img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.player-avatar-marker span{font-size:25px;color:#fff;text-shadow:1px 2px 0 #b52b70}
+.avatar-settings{margin-top:16px;padding:13px;background:#fff;border:1px solid #efd4e1;border-radius:13px}
+.avatar-settings h4{margin:0 0 10px}
+.avatar-settings input{display:block;width:100%;margin:8px 0}
+.avatar-settings button{width:100%;margin:8px 0}
+.avatar-settings small{display:block;font-size:11px;color:#956c82;overflow-wrap:anywhere}
+.avatar-preview{width:76px;height:76px;object-fit:cover;border:3px solid #553047;border-radius:50%;margin:8px 0}
+.profile-coin{align-items:flex-start;flex-direction:column;gap:4px}
+.profile-coin .collection-timestamp{font-weight:900;color:#70445c}
