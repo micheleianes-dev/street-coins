@@ -536,3 +536,18 @@ button:disabled { opacity:.45;cursor:not-allowed; }
 .street-card-detail-info h2{margin:5px 28px 8px!important}
 .street-card-detail-collection{margin:8px 0;color:#80566c;font-size:12px}
 #streetCardDetailDescription{font-size:13px;line-height:1.45;white-space:pre-wrap}
+
+
+/* V48 — emblema identificativo per ogni collezione */
+.coin-card-frame::before{display:none!important}
+.coin-card-mark{display:none!important}
+.coin-card-emblem{
+ position:absolute;z-index:7;top:3px;left:50%;transform:translateX(-50%);
+ width:17px;height:17px;display:grid;place-items:center;
+ color:var(--coin-color);background:#171720;
+ border:1px solid var(--coin-color);border-radius:50%;
+ box-shadow:0 1px 4px #0009;pointer-events:none;overflow:hidden;
+}
+.coin-card-emblem span{font-size:11px;line-height:1}
+.coin-card-emblem img{width:100%!important;height:100%!important;object-fit:contain!important;padding:2px!important;background:#171720}
+.category-icon-preview{display:block;width:44px;height:44px;object-fit:contain;background:#201b27;border:1px solid #d9b8ca;padding:4px;border-radius:8px;margin:5px 0}
