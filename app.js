@@ -1,5 +1,5 @@
-/* STREET COINS V26 */
-const APP_VERSION="V26";
+/* STREET COINS V27 */
+const APP_VERSION="V27";
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
@@ -66,7 +66,7 @@ async function syncUser(){
   const [a,c]=await Promise.all([db.from("admins").select("user_id").eq("user_id",user.id).maybeSingle(),db.from("coin_collections").select("coin_id").eq("user_id",user.id)]);
   admin=!!a.data;if(c.data)collected=new Set(c.data.map(x=>x.coin_id));
  }
- account.textContent=user?(admin?"Admin":"Account"):"Accedi";updateCount();draw();if(user) $("authPanel").classList.add("hidden");
+ account.textContent=user?(admin?"Admin":"Account"):"Accedi";updateCount();draw();$("welcomeContinue").classList.toggle("hidden",!user);if(user) $("authMsg").textContent="Bentornato! Sei già connesso. Premi Continua per entrare nel gioco.";
 }
 async function collect(c){
  if(!user){say("Accedi per raccogliere questa moneta.");$("authPanel").classList.remove("hidden");$("authMsg").textContent="Accedi o crea un account per salvare le monete.";return}
@@ -173,7 +173,7 @@ async function showAdmin(){
  })
 }
 account.onclick=async()=>{if(!user){$("authPanel").classList.remove("hidden");return}if(admin){showAdmin();return}if(confirm("Vuoi uscire dall'account?")){await db.auth.signOut();await syncUser()}}
-$("authClose").onclick=()=>$("authPanel").classList.add("hidden");$("adminClose").onclick=()=>$("adminPanel").classList.add("hidden");$("adminBack").onclick=()=>$("adminPanel").classList.add("hidden");$("victoryNext").onclick=()=>$("victoryPanel").classList.add("hidden");
+$("authClose").onclick=()=>$("authPanel").classList.add("hidden");$("welcomeContinue").onclick=()=>{$("authPanel").classList.add("hidden");if(admin)showAdmin()};$("adminClose").onclick=()=>$("adminPanel").classList.add("hidden");$("adminBack").onclick=()=>$("adminPanel").classList.add("hidden");$("victoryNext").onclick=()=>$("victoryPanel").classList.add("hidden");
 $("login").onclick=async()=>{let r=await db.auth.signInWithPassword({email:$("email").value.trim(),password:$("password").value});$("authMsg").textContent=r.error?.message||"Accesso effettuato";if(!r.error){$("authPanel").classList.add("hidden");await syncUser();if(admin)showAdmin()}}
 $("signup").onclick=async()=>{let r=await db.auth.signUp({email:$("email").value.trim(),password:$("password").value});$("authMsg").textContent=r.error?.message||"Registrazione avviata: controlla la posta per confermare l'email."}
 $("seedCoins").onclick=seed;locate.onclick=startGPS;recenter.onclick=()=>{if(position){map.setView([position.lat,position.lon],map.getZoom(),{animate:false})}};refresh.onclick=()=>loadCoins().then(n=>say(`${n} monete caricate`)).catch(e=>say(e.message));
