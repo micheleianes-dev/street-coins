@@ -1,5 +1,5 @@
-/* STREET COINS V47 */
-const APP_VERSION="V47";
+/* STREET COINS V48 */
+const APP_VERSION="V48";
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
@@ -50,6 +50,10 @@ function updateCount(){
 }
 function categoryColor(name,fallback){return categories.find(x=>x.name===name)?.color||fallback||"#ff6eae"}
 function categoryImage(path){return path?db.storage.from("coin-images").getPublicUrl(path).data.publicUrl:""}
+function collectionIconMarkup(category){
+ const cat=categories.find(x=>x.name===category)||{};
+ return cat.icon_image_path?'<img src="'+esc(categoryImage(cat.icon_image_path))+'" alt="">':'<span>'+esc(cat.icon_symbol||"✦")+'</span>';
+}
 function playerIcon(){
  const inner=avatarUrl?'<img src="'+esc(avatarUrl)+'" alt="">':'<span>★</span>';
  const walking=movementActive?' is-walking':'';
@@ -64,8 +68,9 @@ function updateDirectionArrow(stamp,heading){
  movementActive=stamp-movingSince>=2800&&stableHeading!==null&&Number.isFinite(stableHeading);
 }
 function icon(c){
- const color=categoryColor(c.category,c.color),photo=c.image_path?'<img src="'+esc(categoryImage(c.image_path))+'" alt="">':'<span class="coin-sticker-placeholder">✦</span>';
- return L.divIcon({className:"coin-sticker-icon",html:'<div class="coin-sticker-wrap" style="--coin-color:'+esc(color)+'"><div class="coin-sticker '+(collected.has(c.id)?"collected":"")+'">'+photo+'<i class="coin-sticker-shine"></i><i class="coin-card-frame"></i><i class="coin-card-mark"></i></div><i class="coin-sticker-shadow"></i><i class="coin-location-pin"></i></div>',iconSize:[76,102],iconAnchor:[38,101]});
+ const color=categoryColor(c.category,c.color),collectionMark=collectionIconMarkup(c.category),photo=c.image_path?'<img src="'+esc(categoryImage(c.image_path))+'" alt="">':'<span class="coin-sticker-placeholder">✦</span>';
+ const html='<div class="coin-sticker-wrap" style="--coin-color:'+esc(color)+'"><div class="coin-sticker '+(collected.has(c.id)?"collected")+'">'+photo+'<i class="coin-sticker-shine"></i><i class="coin-card-frame"></i><i class="coin-card-emblem">'+collectionMark+'</i></div><i class="coin-sticker-shadow"></i><i class="coin-location-pin"></i></div>';
+ return L.divIcon({className:"coin-sticker-icon",html,iconSize:[76,102],iconAnchor:[38,101]});
 }
 function draw(){layer.clearLayers();coins.forEach(c=>{c.marker=L.marker([c.latitude,c.longitude],{icon:icon(c)}).addTo(layer);c.marker.bindPopup(`<div class="coin-popup"><b>${esc(c.name||c.code)}</b><p>${esc(c.description||"Nessuna descrizione disponibile.")}</p>${collected.has(c.id)?'<small>Già raccolta da te</small>':""}</div>`);c.marker.on("click",()=>{const el=c.marker.getElement()?.querySelector(".coin-sticker");if(el){el.classList.remove("coin-sticker-tap");void el.offsetWidth;el.classList.add("coin-sticker-tap")}if(bonusMode||(position&&dist(position,{lat:c.latitude,lon:c.longitude})<=collectionRadius()))collect(c)})})}
 async function loadCategories(){const {data,error}=await db.from("categories").select("*").order("name");if(error)throw error;categories=data||[];updateCount();return categories}
@@ -250,10 +255,10 @@ async function uploadCategoryImage(file,slug){
 }
 function categorySelect(value){return '<select data-category>'+categories.map(c=>'<option value="'+esc(c.name)+'" '+(c.name===value?"selected":"")+'>'+esc(c.name)+'</option>').join("")+'</select>'}
 async function saveNewCategory(){
- const name=$("newCategoryName").value.trim(),description=$("newCategoryDescription").value.trim(),color=$("newCategoryColor").value,file=$("newCategoryImage").files[0];
+ const name=$("newCategoryName").value.trim(),description=$("newCategoryDescription").value.trim(),color=$("newCategoryColor").value,file=$("newCategoryImage").files[0],icon_symbol=$("newCategoryIcon").value,iconFile=$("newCategoryIconFile").files[0];
  if(!name){$("adminMsg").textContent="Inserisci il nome della collezione.";return}
- try{let image_path=await uploadCategoryImage(file,name.toLowerCase().replace(/[^a-z0-9]+/g,"-"));const {error}=await db.from("categories").insert({name,description,color,image_path});if(error)throw error;
-  $("newCategoryName").value="";$("newCategoryDescription").value="";$("newCategoryImage").value="";await loadCategories();showAdmin();$("adminMsg").textContent="Collezione creata.";
+ try{let image_path=await uploadCategoryImage(file,name.toLowerCase().replace(/[^a-z0-9]+/g,"-"));const icon_image_path=iconFile?await uploadCategoryImage(iconFile,"icon-"+name.toLowerCase().replace(/[^a-z0-9]+/g,"-")):null;const {error}=await db.from("categories").insert({name,description,color,image_path,icon_symbol,icon_image_path});if(error)throw error;
+  $("newCategoryName").value="";$("newCategoryDescription").value="";$("newCategoryImage").value="";$("newCategoryIconFile").value="";$("newCategoryIcon").value="✦";await loadCategories();showAdmin();$("adminMsg").textContent="Collezione creata.";
  }catch(e){$("adminMsg").textContent="Errore collezione: "+e.message}
 }
 async function showCategoryOverview(){
@@ -271,12 +276,12 @@ async function showAdmin(){
  $("coinList").innerHTML="";$("categoryAdminList").replaceChildren();
  categories.forEach(cat=>{
   const d=document.createElement("div");d.className="category-admin-row";
-  d.innerHTML='<label>Nome<input data-name maxlength="60" value="'+esc(cat.name)+'"></label><label>Descrizione<textarea data-description maxlength="500">'+esc(cat.description||"")+'</textarea></label><label>Colore<input data-color type="color" value="'+esc(cat.color||"#ff6eae")+'"></label><label>Immagine generale<input data-file type="file" accept="image/png,image/jpeg,image/webp"></label>'+(cat.image_path?'<img class="category-admin-preview" src="'+esc(categoryImage(cat.image_path))+'" alt="Immagine collezione">':'')+'<button class="primary" data-save>Salva collezione</button><button class="danger" data-delete>Elimina collezione</button>';
+  d.innerHTML='<label>Nome<input data-name maxlength="60" value="'+esc(cat.name)+'"></label><label>Descrizione<textarea data-description maxlength="500">'+esc(cat.description||"")+'</textarea></label><label>Colore<input data-color type="color" value="'+esc(cat.color||"#ff6eae")+'"></label><label>Immagine generale<input data-file type="file" accept="image/png,image/jpeg,image/webp"></label>'+(cat.image_path?'<img class="category-admin-preview" src="'+esc(categoryImage(cat.image_path))+'" alt="Immagine collezione">':'')+'<label>Icona della collezione<select data-icon-symbol>'+["✦","🏛️","🏰","🌿","🐉","🚀","🏁","⭐","⚽","🎨","🐾","💎","🗺️","🌍","🎭","🎵"].map(v=>'<option value="'+v+'"'+((cat.icon_symbol||"✦")===v?" selected":"")+'>'+v+'</option>').join("")+'</select></label><label>Oppure carica icona personalizzata<input data-icon-file type="file" accept="image/png,image/jpeg,image/webp"></label>'+(cat.icon_image_path?'<img class="category-icon-preview" src="'+esc(categoryImage(cat.icon_image_path))+'" alt="Icona attuale">':'')+'<button class="primary" data-save>Salva collezione</button><button class="danger" data-delete>Elimina collezione</button>';
   $("categoryAdminList").appendChild(d);
   d.querySelector("[data-save]").onclick=async()=>{try{
    const newName=d.querySelector("[data-name]").value.trim();if(!newName)throw Error("Il nome è obbligatorio.");
-   const patch={name:newName,description:d.querySelector("[data-description]").value.trim(),color:d.querySelector("[data-color]").value};
-   const f=d.querySelector("[data-file]").files[0];if(f)patch.image_path=await uploadCategoryImage(f,newName.toLowerCase().replace(/[^a-z0-9]+/g,"-"));
+   const patch={name:newName,description:d.querySelector("[data-description]").value.trim(),color:d.querySelector("[data-color]").value,icon_symbol:d.querySelector("[data-icon-symbol]").value};
+   const f=d.querySelector("[data-file]").files[0];if(f)patch.image_path=await uploadCategoryImage(f,newName.toLowerCase().replace(/[^a-z0-9]+/g,"-"));const iconFile=d.querySelector("[data-icon-file]").files[0];if(iconFile)patch.icon_image_path=await uploadCategoryImage(iconFile,"icon-"+newName.toLowerCase().replace(/[^a-z0-9]+/g,"-"));else patch.icon_image_path=null;
    if(newName!==cat.name){const moved=await db.from("coins").update({category:newName,color:patch.color}).eq("category",cat.name);if(moved.error)throw moved.error}
    const saved=await db.from("categories").update(patch).eq("id",cat.id);if(saved.error)throw saved.error;
    await loadCoins();showAdmin();$("adminMsg").textContent="Collezione aggiornata.";
