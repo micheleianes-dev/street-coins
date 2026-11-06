@@ -345,3 +345,48 @@ button:disabled { opacity:.45;cursor:not-allowed; }
 .album-slot>small{font-size:9px;}
 .album-slot.is-missing{border-style:solid;background:#faf7f9;opacity:.7;}
 .album-slot.is-missing .album-art{background:repeating-linear-gradient(135deg,#fff 0 7px,#f7edf2 7px 14px);}
+
+
+/* V43 — bordo sottile, sostegno dietro la card e immagini con ritaglio identico */
+.coin-sticker{
+  box-sizing:border-box;
+  position:relative;
+  z-index:2;
+  border-width:2px!important;
+  overflow:hidden;
+}
+.coin-sticker img{
+  position:absolute;
+  inset:0;
+  display:block;
+  width:100%!important;
+  height:100%!important;
+  max-width:none!important;
+  max-height:none!important;
+  object-fit:cover!important;
+  object-position:50% 50%!important;
+  margin:0!important;
+  padding:0!important;
+}
+.coin-location-pin{z-index:0!important;pointer-events:none}
+.coin-location-pin::before{z-index:0}
+.album-art{
+  position:relative;
+  width:100%;
+  height:auto;
+  aspect-ratio:3/4;
+  overflow:hidden;
+}
+.album-art img{
+  position:absolute;
+  inset:0;
+  display:block;
+  width:100%!important;
+  height:100%!important;
+  max-width:none!important;
+  max-height:none!important;
+  object-fit:cover!important;
+  object-position:50% 50%!important;
+  margin:0!important;
+  padding:0!important;
+}
