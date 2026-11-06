@@ -158,5 +158,9 @@ button:disabled { opacity:.45;cursor:not-allowed; }
 /* V31 — pulsante Profilo sempre visibile e cliccabile */
 .profile-shortcut{display:block!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;position:relative;z-index:1300;flex:0 0 82px;min-width:82px;height:auto;align-self:stretch;background:#fff8fc;color:#553047;border:3px solid #553047;border-radius:20px;font-size:14px;font-weight:1000;box-shadow:0 5px 0 #553047,0 8px 14px #55304730}.controls{pointer-events:auto}.controls>*{pointer-events:auto}
 
-/* V32 — scorciatoia contestuale Profilo/Admin */
+/* V33 — pulsanti Profilo e Admin affiancati */
 .profile-shortcut{display:flex!important;align-items:center;justify-content:center;visibility:visible!important;opacity:1!important;pointer-events:auto!important;position:relative;z-index:1300;flex:0 0 82px;min-width:82px;height:auto;align-self:stretch;background:#fff8fc;color:#553047;border:3px solid #553047;border-radius:20px;font-size:14px;font-weight:1000;box-shadow:0 5px 0 #553047,0 8px 14px #55304730}.controls{pointer-events:auto}.controls>*{pointer-events:auto}
+
+/* V33 — navigazione sempre visibile */
+.profile-shortcut,.admin-shortcut{display:flex!important;align-items:center;justify-content:center;visibility:visible!important;opacity:1!important;pointer-events:auto!important;position:relative;z-index:1300;flex:0 0 66px;min-width:66px;height:auto;align-self:stretch;padding:9px 5px;background:#fff8fc;color:#553047;border:3px solid #553047;border-radius:18px;font-size:12px;font-weight:1000;box-shadow:0 5px 0 #553047,0 8px 14px #55304730;white-space:nowrap}.admin-shortcut{background:#b9e9ff;color:#28475a;border-color:#28475a;box-shadow:0 5px 0 #28475a,0 8px 14px #28475a30}.controls{gap:6px}.bonus{min-width:64px;padding:9px 6px}.bonus small{font-size:8px}.controls .primary{padding:10px 7px;font-size:12px}
+@media(min-width:700px){.profile-shortcut,.admin-shortcut{flex-basis:78px;min-width:78px;font-size:13px}.controls{width:440px}}
