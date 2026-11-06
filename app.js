@@ -1,5 +1,5 @@
-/* STREET COINS V32 */
-const APP_VERSION="V32";
+/* STREET COINS V33 */
+const APP_VERSION="V33";
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
@@ -66,7 +66,7 @@ async function syncUser(){
   const [a,c]=await Promise.all([db.from("admins").select("user_id").eq("user_id",user.id).maybeSingle(),db.from("coin_collections").select("coin_id").eq("user_id",user.id)]);
   admin=!!a.data;if(c.data)collected=new Set(c.data.map(x=>x.coin_id));
  }
- account.textContent=user?(admin?"Admin":"Profilo"):"Accedi";refresh.textContent=admin?"Admin":(user?"Profilo":"Accedi");refresh.title=admin?"Apri il pannello amministratore":"Apri il profilo giocatore";refresh.setAttribute("aria-label",refresh.title);updateCount();draw();
+ account.textContent=user?(admin?"Admin":"Profilo"):"Accedi";refresh.textContent="Profilo";refresh.title="Apri il profilo giocatore";refresh.setAttribute("aria-label",refresh.title);updateCount();draw();
 }
 async function collect(c){
  if(!user){say("Accedi per raccogliere questa moneta.");$("authPanel").classList.remove("hidden");$("authMsg").textContent="Accedi o crea un account per salvare le monete.";return}
@@ -154,33 +154,7 @@ async function seed(){
  }catch(e){$("adminMsg").textContent=e.message||"Errore nella creazione delle monete"}
  finally{$("seedCoins").disabled=false}
 }
-async function resetAndSeed(){
- const btn=$("resetCoins");btn.disabled=true;
- $("adminMsg").textContent="Reset in corso: elimino monete e raccolte precedenti…";
- try{
-  const existing=await db.from("coins").select("id");
-  if(existing.error)throw existing.error;
-  const ids=(existing.data||[]).map(x=>x.id);
-  if(ids.length){
-   const removedCollections=await db.from("coin_collections").delete().in("coin_id",ids);
-   if(removedCollections.error)throw Error("Cancellazione raccolte non riuscita: "+removedCollections.error.message);
-   const removedCoins=await db.from("coins").delete().in("id",ids);
-   if(removedCoins.error)throw Error("Cancellazione monete non riuscita: "+removedCoins.error.message);
-  }
-  const check=await db.from("coins").select("id");
-  if(check.error)throw check.error;
-  if((check.data||[]).length)throw Error("Il database non ha cancellato tutte le monete. Probabile blocco delle autorizzazioni (RLS). Non creo nuove monete per evitare duplicati.");
-  coins=[];collected=new Set();draw();
-  $("adminMsg").textContent="Vecchie monete eliminate. Creo le 10 nuove…";
-  await seed();
-  const verify=await db.from("coins").select("id");
-  if(verify.error)throw verify.error;
-  if((verify.data||[]).length!==10)throw Error("Verifica finale: nel database risultano "+(verify.data||[]).length+" monete, non 10.");
-  $("adminMsg").textContent="Reset completato: 10 nuove monete create.";
-  await loadCoins();
- }catch(e){$("adminMsg").textContent="Reset non completato: "+(e.message||String(e))}
- finally{btn.disabled=false}
-}
+
 async function addCoin(){
  const code=$("newCoinCode").value.trim(),name=$("newCoinName").value.trim(),description=$("newCoinDescription").value.trim(),latitude=Number($("newCoinLat").value),longitude=Number($("newCoinLon").value),color=$("newCoinColor").value;
  if(!code||!name||!Number.isFinite(latitude)||!Number.isFinite(longitude)||Math.abs(latitude)>90||Math.abs(longitude)>180){$("adminMsg").textContent="Inserisci codice, nome e coordinate valide.";return}
@@ -224,7 +198,7 @@ account.onclick=async()=>{if(!user){$("authPanel").classList.remove("hidden");re
 $("authClose").onclick=()=>$("authPanel").classList.add("hidden");$("profileClose").onclick=()=>$("profilePanel").classList.add("hidden");document.querySelectorAll("[data-profile-tab]").forEach(btn=>btn.onclick=()=>{document.querySelectorAll("[data-profile-tab]").forEach(x=>x.classList.toggle("active",x===btn));document.querySelectorAll(".profile-tab-content").forEach(x=>x.classList.toggle("hidden",x.id!=="profile-"+btn.dataset.profileTab))});$("adminClose").onclick=()=>$("adminPanel").classList.add("hidden");$("adminBack").onclick=()=>$("adminPanel").classList.add("hidden");$("victoryNext").onclick=()=>$("victoryPanel").classList.add("hidden");
 $("login").onclick=async()=>{let r=await db.auth.signInWithPassword({email:$("email").value.trim(),password:$("password").value});$("authMsg").textContent=r.error?.message||"Accesso effettuato";if(!r.error){$("authPanel").classList.add("hidden");await syncUser();if(admin)showAdmin()}}
 $("signup").onclick=async()=>{let r=await db.auth.signUp({email:$("email").value.trim(),password:$("password").value});$("authMsg").textContent=r.error?.message||"Registrazione avviata: controlla la posta per confermare l'email."}
-$("seedCoins").onclick=seed;$("resetCoins").onclick=resetAndSeed;$("addCoin").onclick=addCoin;locate.onclick=startGPS;recenter.onclick=()=>{if(position){map.setView([position.lat,position.lon],map.getZoom(),{animate:false})}};refresh.onclick=()=>{if(!user){$("authPanel").classList.remove("hidden");return}if(admin){showAdmin();return}showProfile()};
+$("seedCoins").onclick=seed;$("addCoin").onclick=addCoin;locate.onclick=startGPS;recenter.onclick=()=>{if(position){map.setView([position.lat,position.lon],map.getZoom(),{animate:false})}};refresh.onclick=()=>showProfile();$("adminShortcut").onclick=()=>{if(admin){showAdmin();return}if(!user){$("authPanel").classList.remove("hidden");$("authMsg").textContent="Accedi con un account amministratore per aprire questo pannello.";return}say("Accesso riservato agli amministratori.")};
 bonus.onclick=()=>{if(!user){$("authPanel").classList.remove("hidden");return}bonusMode=!bonusMode;bonus.classList.toggle("active",bonusMode);say(bonusMode?"Bonus attivo: tocca una moneta entro 200 metri.":"Bonus disattivato")};
 db.auth.onAuthStateChange(()=>setTimeout(syncUser,0));
 (async()=>{startGPS();try{await syncUser();let n=await loadCoins();if(!position)say(n?`${n} monete caricate. In attesa della posizione GPS…`:"Database pronto: accedi come amministratore e crea le 10 monete.");}catch(e){say("Errore database: "+e.message)}})();
