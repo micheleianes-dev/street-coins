@@ -1,5 +1,5 @@
-/* STREET COINS V38 */
-const APP_VERSION="V38";
+/* STREET COINS V39 */
+const APP_VERSION="V39";
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
@@ -63,7 +63,10 @@ function updateDirectionArrow(stamp,heading){
  if(heading!==null&&Number.isFinite(heading))stableHeading=heading;
  movementActive=stamp-movingSince>=2800&&stableHeading!==null&&Number.isFinite(stableHeading);
 }
-function icon(c){let inner=c.image_path?'<img src="'+esc(categoryImage(c.image_path))+'">':"<span>★</span>";const color=categoryColor(c.category,c.color);return L.divIcon({className:"",html:'<div class="coin-marker '+(collected.has(c.id)?"collected":"")+'" style="--coin-color:'+esc(color)+';background:'+esc(color)+'">'+inner+'</div>',iconSize:[42,42],iconAnchor:[21,21]})}
+function icon(c){
+ const color=categoryColor(c.category,c.color),photo=c.image_path?'<img src="'+esc(categoryImage(c.image_path))+'" alt="">':'<span class="coin-postcard-placeholder">✦</span>',label=esc(c.name||c.code);
+ return L.divIcon({className:"coin-map-icon",html:'<div class="coin-map-stack" style="--coin-color:'+esc(color)+'"><div class="coin-postcard">'+photo+'<span class="coin-postcard-label">'+label+'</span></div><div class="coin-marker '+(collected.has(c.id)?"collected":"")+'"><span>✦</span></div></div>',iconSize:[82,104],iconAnchor:[41,104]});
+}
 function draw(){layer.clearLayers();coins.forEach(c=>{c.marker=L.marker([c.latitude,c.longitude],{icon:icon(c)}).addTo(layer);c.marker.bindPopup(`<div class="coin-popup"><b>${esc(c.name||c.code)}</b><p>${esc(c.description||"Nessuna descrizione disponibile.")}</p>${collected.has(c.id)?'<small>Già raccolta da te</small>':""}</div>`);c.marker.on("click",()=>{const el=c.marker.getElement()?.querySelector(".coin-marker");if(el){el.classList.remove("coin-tap");void el.offsetWidth;el.classList.add("coin-tap")}if(bonusMode||(position&&dist(position,{lat:c.latitude,lon:c.longitude})<=collectionRadius()))collect(c)})})}
 async function loadCategories(){const {data,error}=await db.from("categories").select("*").order("name");if(error)throw error;categories=data||[];updateCount();return categories}
 async function loadCoins(){await loadCategories();let {data,error}=await db.from("coins").select("*").order("code");if(error)throw error;coins=data||[];draw();updateCount();return coins.length}
