@@ -1,5 +1,5 @@
-/* STREET COINS V45 */
-const APP_VERSION="V45";
+/* STREET COINS V46 */
+const APP_VERSION="V46";
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
@@ -169,7 +169,7 @@ async function seed(){
 
 async function nextCoinCode(){
  const {data,error}=await db.from("coins").select("code");if(error)throw error;
- let max=0;(data||[]).forEach(c=>{const m=String(c.code||"").match(/^TR-(\\d+)$/i);if(m)max=Math.max(max,Number(m[1]))});
+ let max=0;(data||[]).forEach(c=>{const m=String(c.code||"").match(/^TR-(\d+)$/i);if(m)max=Math.max(max,Number(m[1]))});
  return "TR-"+String(max+1).padStart(3,"0");
 }
 async function addCoin(){
