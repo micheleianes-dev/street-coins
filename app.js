@@ -1,5 +1,5 @@
-/* STREET COINS V37 */
-const APP_VERSION="V37";
+/* STREET COINS V38 */
+const APP_VERSION="V38";
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
@@ -10,7 +10,7 @@ L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=
 L.control.zoom({position:"bottomright"}).addTo(map);
 const layer=L.layerGroup().addTo(map),$=id=>document.getElementById(id);
 map.on("click",e=>{const lat=e.latlng.lat,lon=e.latlng.lng;L.popup().setLatLng(e.latlng).setContent(`<div class="coord-popup"><b>Punto selezionato</b><br>Latitudine: ${lat.toFixed(6)}<br>Longitudine: ${lon.toFixed(6)}</div>`).openOn(map)});
-let categories=[],user=null,admin=false,position=null,accuracy=999,watch=null,coins=[],collected=new Set(),collectionDates=new Map(),pendingCollections=new Set(),avatarUrl="",bonusMode=false,audioCtx=null,lastGpsFix=null,headingAnchor=null,gpsWatchdog=null,playerMoving=false,movingSince=0,movementActive=false,hasInitialGpsView=false,stableHeading=null,lastHeadingUpdate=0;
+let categories=[],user=null,admin=false,position=null,accuracy=999,watch=null,coins=[],collected=new Set(),collectionDates=new Map(),pendingCollections=new Set(),avatarUrl="",bonusMode=false,audioCtx=null,lastGpsFix=null,headingAnchor=null,gpsWatchdog=null,playerMoving=false,movingSince=0,movementActive=false,hasInitialGpsView=false,stableHeading=null,lastHeadingUpdate=0,walkingDistanceM=0,lastProgressSave=0;
 $("appVersion").textContent=APP_VERSION;
 const status=$("status"),locate=$("locateBtn"),account=$("accountBtn"),bonus=$("bonusBtn"),refresh=$("refreshBtn"),recenter=$("recenterBtn");
 function say(s){status.textContent=s}
@@ -68,7 +68,8 @@ function draw(){layer.clearLayers();coins.forEach(c=>{c.marker=L.marker([c.latit
 async function loadCategories(){const {data,error}=await db.from("categories").select("*").order("name");if(error)throw error;categories=data||[];updateCount();return categories}
 async function loadCoins(){await loadCategories();let {data,error}=await db.from("coins").select("*").order("code");if(error)throw error;coins=data||[];draw();updateCount();return coins.length}
 async function syncUser(){
- let {data:{session}}=await db.auth.getSession();user=session?.user||null;admin=false;collected=new Set();collectionDates=new Map();avatarUrl="";
+ let {data:{session}}=await db.auth.getSession();user=session?.user||null;admin=false;collected=new Set();collectionDates=new Map();avatarUrl="";walkingDistanceM=0;lastProgressSave=0;
+ if(user){const progress=await db.from("player_progress").select("walking_distance_m").eq("user_id",user.id).maybeSingle();if(progress.error)console.warn("Progressi camminata non disponibili",progress.error);walkingDistanceM=Number(progress.data?.walking_distance_m)||0;}
  if(user){
   const [a,c]=await Promise.all([db.from("admins").select("user_id").eq("user_id",user.id).maybeSingle(),db.from("coin_collections").select("coin_id,collected_at").eq("user_id",user.id)]);
   admin=!!a.data;if(c.error)throw c.error;if(c.data){collected=new Set(c.data.map(x=>x.coin_id));collectionDates=new Map(c.data.map(x=>[x.coin_id,x.collected_at]));}
@@ -83,7 +84,7 @@ async function collect(c){
  try{
   const {data,error}=await db.from("coin_collections").insert({user_id:user.id,coin_id:c.id}).select("collected_at").single();
   if(error&&error.code!=="23505")throw error;
-  collected.add(c.id);if(data&&data.collected_at)collectionDates.set(c.id,data.collected_at);c.marker?.setIcon(icon(c));updateCount();say("Moneta raccolta!");showVictory(c);
+  collected.add(c.id);if(data&&data.collected_at)collectionDates.set(c.id,data.collected_at);c.marker?.setIcon(icon(c));updateCount();updateGoalsIfVisible();say("Moneta raccolta!");showVictory(c);
  }catch(e){say("Raccolta non completata: "+(e.message||"controlla la connessione e riprova."))}
  finally{pendingCollections.delete(c.id)}
 }
@@ -112,7 +113,7 @@ function startGPS(){
   const nextPosition={lat:p.coords.latitude,lon:p.coords.longitude},stamp=p.timestamp||Date.now(),previousFix=lastGpsFix;
   let speed=Number.isFinite(p.coords.speed)?p.coords.speed:0,derivedHeading=null;
   const newAccuracy=p.coords.accuracy||999;
-  if(previousFix){const seconds=(stamp-previousFix.time)/1000,meters=dist(previousFix.position,nextPosition);if(seconds>.2&&!Number.isFinite(p.coords.speed))speed=meters/seconds}
+  if(previousFix){const seconds=(stamp-previousFix.time)/1000,meters=dist(previousFix.position,nextPosition);if(seconds>.2&&!Number.isFinite(p.coords.speed))speed=meters/seconds;const segmentSpeed=seconds>0?meters/seconds:0;if(user&&seconds>=1&&seconds<=15&&meters>=2&&meters<=38&&newAccuracy<=25&&previousFix.accuracy<=25&&segmentSpeed>=.45&&segmentSpeed<=2.5){walkingDistanceM+=meters;updateGoalsIfVisible();if(walkingDistanceM-lastProgressSave>=20)saveWalkingProgress()}}
   if(!headingAnchor)headingAnchor={position:nextPosition,time:stamp};
   const anchorSeconds=(stamp-headingAnchor.time)/1000,anchorMeters=dist(headingAnchor.position,nextPosition);
   if(anchorSeconds>=1.2&&anchorMeters>=3&&newAccuracy<=50){derivedHeading=bearingBetween(headingAnchor.position,nextPosition);headingAnchor={position:nextPosition,time:stamp}}
@@ -179,12 +180,15 @@ async function addCoin(){
   await loadCoins();$("adminMsg").textContent="Moneta "+code+" aggiunta.";showAdmin();
  }catch(e){$("adminMsg").textContent="Errore: "+e.message}
 }
+async function saveWalkingProgress(){if(!user)return;const value=Math.round(walkingDistanceM);const {error}=await db.from("player_progress").upsert({user_id:user.id,walking_distance_m:value,updated_at:new Date().toISOString()},{onConflict:"user_id"});if(error){console.warn("Salvataggio distanza non riuscito",error);return}lastProgressSave=value;updateGoalsIfVisible()}
+function updateGoalsIfVisible(){const box=$("profile-goals");if(box&&!box.classList.contains("hidden"))renderGoals()}
+function renderGoals(){const box=$("profileGoals");if(!box)return;box.replaceChildren();const goals=[{title:"Raccogli 5 monete",detail:"Trova cinque monete in giro per la città.",value:collected.size,target:5,unit:"monete"},{title:"Percorri 1 km in Street Coins",detail:"Cammina con il GPS attivo e accumula distanza.",value:walkingDistanceM,target:1000,unit:"m"}];goals.forEach(g=>{const current=Math.min(g.value,g.target),percent=Math.min(100,Math.round(current/g.target*100)),card=document.createElement("article");card.className="goal-card";const ring=document.createElement("div");ring.className="goal-ring";ring.style.setProperty("--progress",percent+"%");const inside=document.createElement("span");inside.textContent=percent+"%";ring.appendChild(inside);const info=document.createElement("div"),title=document.createElement("b"),detail=document.createElement("small"),count=document.createElement("strong");title.textContent=g.title;detail.textContent=g.detail;count.textContent=g.unit==="m"?Math.round(current)+" / 1000 m":current+" / "+g.target+" monete";info.append(title,detail,count);card.append(ring,info);box.appendChild(card)})}
 async function showProfile(){
  if(!user){$("authPanel").classList.remove("hidden");return}
  const meta=user.user_metadata||{},name=meta.display_name||meta.full_name||meta.name||meta.nickname||(user.email||"").split("@")[0]||"Giocatore";
  $("profileName").textContent=name;$("profileEmail").textContent=user.email||"";$("profileAvatar").replaceChildren();
  if(avatarUrl){const img=document.createElement("img");img.src=avatarUrl;img.alt="Avatar";$("profileAvatar").appendChild(img)}else{$("profileAvatar").textContent="★"}
- $("profileStats").textContent=collected.size+" / "+coins.length+" monete raccolte";
+ $("profileStats").textContent=collected.size+" / "+coins.length+" monete raccolte";renderGoals();
  const list=$("profileCollection");list.replaceChildren();
  const groups=new Map();coins.forEach(c=>{const category=(c.category||"Generale").trim()||"Generale";if(!groups.has(category))groups.set(category,[]);groups.get(category).push(c)});
  if(!groups.size){const p=document.createElement("p");p.className="profile-empty";p.textContent="L'album è ancora vuoto.";list.appendChild(p)}
@@ -201,8 +205,6 @@ async function showProfile(){
    grid.appendChild(slot);
   });section.appendChild(grid);list.appendChild(section);
  });
- const medals=[{n:1,t:"Prima scoperta",d:"Raccogli la tua prima moneta"},{n:5,t:"Collezionista",d:"Raccogli 5 monete"},{n:10,t:"Tesoro di Trento",d:"Completa le 10 monete iniziali"}];const box=$("profileMedals");box.replaceChildren();
- medals.forEach(m=>{const row=document.createElement("div");row.className="medal "+(collected.size>=m.n?"unlocked":"locked");const title=document.createElement("b");title.textContent=(collected.size>=m.n?"🏅 ":"🔒 ")+m.t;const desc=document.createElement("small");desc.textContent=m.d;row.append(title,desc);box.appendChild(row)});
  $("profilePanel").classList.remove("hidden");
 }
 async function uploadAvatar(){
@@ -242,7 +244,7 @@ async function showCategoryOverview(){
  });panel.classList.remove("hidden");
 }
 async function showAdmin(){
- $("adminPanel").classList.remove("hidden");$("adminMsg").textContent=user.email;
+ $("adminPanel").classList.remove("hidden");$("adminMsg").textContent=user.email;setAdminTab("collections");
  let {data,error}=await db.from("coins").select("*").order("code");if(error){$("coinList").textContent=error.message;return}
  await loadCategories();$("newCoinCode").value=await nextCoinCode();
  const catSelect=$("newCoinCategory");catSelect.replaceChildren();categories.forEach(c=>{const o=document.createElement("option");o.value=c.name;o.textContent=c.name;catSelect.appendChild(o)});
@@ -276,6 +278,8 @@ async function showAdmin(){
   }
  })
 }
+function setAdminTab(tab){document.querySelectorAll("[data-admin-tab]").forEach(b=>b.classList.toggle("active",b.dataset.adminTab===tab));$("admin-collections").classList.toggle("hidden",tab!=="collections");$("admin-coins").classList.toggle("hidden",tab!=="coins")}
+document.querySelectorAll("[data-admin-tab]").forEach(btn=>btn.onclick=()=>setAdminTab(btn.dataset.adminTab));
 account.onclick=async()=>{if(!user){$("authPanel").classList.remove("hidden");return}if(admin){showAdmin();return}showProfile()}
 $("authClose").onclick=()=>$("authPanel").classList.add("hidden");$("profileClose").onclick=()=>$("profilePanel").classList.add("hidden");document.querySelectorAll("[data-profile-tab]").forEach(btn=>btn.onclick=()=>{document.querySelectorAll("[data-profile-tab]").forEach(x=>x.classList.toggle("active",x===btn));document.querySelectorAll(".profile-tab-content").forEach(x=>x.classList.toggle("hidden",x.id!=="profile-"+btn.dataset.profileTab))});$("adminClose").onclick=()=>$("adminPanel").classList.add("hidden");$("categoryCounter").onclick=showCategoryOverview;$("categoryClose").onclick=()=>$("categoryPanel").classList.add("hidden");$("addCategory").onclick=saveNewCategory;$("adminBack").onclick=()=>$("adminPanel").classList.add("hidden");$("victoryNext").onclick=()=>$("victoryPanel").classList.add("hidden");
 $("login").onclick=async()=>{let r=await db.auth.signInWithPassword({email:$("email").value.trim(),password:$("password").value});$("authMsg").textContent=r.error?.message||"Accesso effettuato";if(!r.error){$("authPanel").classList.add("hidden");await syncUser();if(admin)showAdmin()}}
