@@ -175,6 +175,21 @@ async function showProfile(){
  medals.forEach(m=>{const row=document.createElement("div");row.className="medal "+(collected.size>=m.n?"unlocked":"locked");const title=document.createElement("b");title.textContent=(collected.size>=m.n?"🏅 ":"🔒 ")+m.t;const desc=document.createElement("small");desc.textContent=m.d;row.append(title,desc);box.appendChild(row)});
  $("profilePanel").classList.remove("hidden");
 }
+async function uploadAvatar(){
+ const file=$("avatarFile").files[0];if(!file)return;
+ if(!user){$("profileInfoMsg").textContent="Accedi per caricare un avatar.";return}
+ if(!["image/png","image/jpeg","image/webp"].includes(file.type)){$("profileInfoMsg").textContent="Scegli un'immagine PNG, JPG o WEBP.";return}
+ if(file.size>2*1024*1024){$("profileInfoMsg").textContent="L'immagine deve essere inferiore a 2 MB.";return}
+ const ext=file.type==="image/png"?"png":file.type==="image/webp"?"webp":"jpg",path=user.id+"/avatar."+ext;
+ $("avatarUploadBtn").disabled=true;$("profileInfoMsg").textContent="Caricamento avatar…";
+ try{
+  const up=await db.storage.from("avatars").upload(path,file,{upsert:true,contentType:file.type,cacheControl:"3600"});if(up.error)throw up.error;
+  const saved=await db.auth.updateUser({data:{avatar_path:path}});if(saved.error)throw saved.error;
+  user=saved.data.user;avatarUrl=db.storage.from("avatars").getPublicUrl(path).data.publicUrl+"?v="+Date.now();
+  $("profileInfoMsg").textContent="Avatar aggiornato.";await showProfile();updatePlayerMarker();
+ }catch(e){$("profileInfoMsg").textContent="Errore caricamento: "+(e.message||"riprova")}
+ finally{$("avatarUploadBtn").disabled=false}
+}
 async function showAdmin(){
  $("adminPanel").classList.remove("hidden");$("adminMsg").textContent=user.email;
  let {data,error}=await db.from("coins").select("*").order("code");if(error){$("coinList").textContent=error.message;return}
@@ -198,7 +213,7 @@ account.onclick=async()=>{if(!user){$("authPanel").classList.remove("hidden");re
 $("authClose").onclick=()=>$("authPanel").classList.add("hidden");$("profileClose").onclick=()=>$("profilePanel").classList.add("hidden");document.querySelectorAll("[data-profile-tab]").forEach(btn=>btn.onclick=()=>{document.querySelectorAll("[data-profile-tab]").forEach(x=>x.classList.toggle("active",x===btn));document.querySelectorAll(".profile-tab-content").forEach(x=>x.classList.toggle("hidden",x.id!=="profile-"+btn.dataset.profileTab))});$("adminClose").onclick=()=>$("adminPanel").classList.add("hidden");$("adminBack").onclick=()=>$("adminPanel").classList.add("hidden");$("victoryNext").onclick=()=>$("victoryPanel").classList.add("hidden");
 $("login").onclick=async()=>{let r=await db.auth.signInWithPassword({email:$("email").value.trim(),password:$("password").value});$("authMsg").textContent=r.error?.message||"Accesso effettuato";if(!r.error){$("authPanel").classList.add("hidden");await syncUser();if(admin)showAdmin()}}
 $("signup").onclick=async()=>{let r=await db.auth.signUp({email:$("email").value.trim(),password:$("password").value});$("authMsg").textContent=r.error?.message||"Registrazione avviata: controlla la posta per confermare l'email."}
-$("seedCoins").onclick=seed;$("addCoin").onclick=addCoin;locate.onclick=startGPS;recenter.onclick=()=>{if(position){map.setView([position.lat,position.lon],map.getZoom(),{animate:false})}};refresh.onclick=()=>showProfile();$("adminShortcut").onclick=()=>{if(admin){showAdmin();return}if(!user){$("authPanel").classList.remove("hidden");$("authMsg").textContent="Accedi con un account amministratore per aprire questo pannello.";return}say("Accesso riservato agli amministratori.")};
+$("avatarUploadBtn").onclick=uploadAvatar;$("avatarFile").onchange=()=>{const f=$("avatarFile").files[0];if(f){const preview=$("avatarPreview");preview.src=URL.createObjectURL(f);preview.classList.remove("hidden");$("profileInfoMsg").textContent="Anteprima pronta: premi Salva avatar."}};$("seedCoins").onclick=seed;$("addCoin").onclick=addCoin;locate.onclick=startGPS;recenter.onclick=()=>{if(position){map.setView([position.lat,position.lon],map.getZoom(),{animate:false})}};refresh.onclick=()=>showProfile();$("adminShortcut").onclick=()=>{if(admin){showAdmin();return}if(!user){$("authPanel").classList.remove("hidden");$("authMsg").textContent="Accedi con un account amministratore per aprire questo pannello.";return}say("Accesso riservato agli amministratori.")};
 bonus.onclick=()=>{if(!user){$("authPanel").classList.remove("hidden");return}bonusMode=!bonusMode;bonus.classList.toggle("active",bonusMode);say(bonusMode?"Bonus attivo: tocca una moneta entro 200 metri.":"Bonus disattivato")};
 db.auth.onAuthStateChange(()=>setTimeout(syncUser,0));
 (async()=>{startGPS();try{await syncUser();let n=await loadCoins();if(!position)say(n?`${n} monete caricate. In attesa della posizione GPS…`:"Database pronto: accedi come amministratore e crea le 10 monete.");}catch(e){say("Errore database: "+e.message)}})();
