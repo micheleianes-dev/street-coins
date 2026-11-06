@@ -171,9 +171,9 @@ async function nextCoinCode(){
 }
 async function addCoin(){
  const name=$("newCoinName").value.trim(),description=$("newCoinDescription").value.trim(),category=$("newCoinCategory").value,latitude=Number($("newCoinLat").value),longitude=Number($("newCoinLon").value);
- if(!name||!category||!Number.isFinite(latitude)||!Number.isFinite(longitude)||Math.abs(latitude)>90||Math.abs(longitude)>180){$("adminMsg").textContent="Inserisci nome, categoria e coordinate valide.";return}
+ if(!name||!category||!Number.isFinite(latitude)||!Number.isFinite(longitude)||Math.abs(latitude)>90||Math.abs(longitude)>180){$("adminMsg").textContent="Inserisci nome, collezione e coordinate valide.";return}
  try{
-  const code=await nextCoinCode(),cat=categories.find(x=>x.name===category);if(!cat)throw Error("Seleziona una categoria esistente.");
+  const code=await nextCoinCode(),cat=categories.find(x=>x.name===category);if(!cat)throw Error("Seleziona una collezione esistente.");
   const result=await db.from("coins").insert({code,name,description,category,latitude,longitude,color:cat.color});
   if(result.error)throw result.error;
   $("newCoinName").value="";$("newCoinDescription").value="";$("newCoinLat").value="";$("newCoinLon").value="";
@@ -231,10 +231,10 @@ async function uploadCategoryImage(file,slug){
 function categorySelect(value){return '<select data-category>'+categories.map(c=>'<option value="'+esc(c.name)+'" '+(c.name===value?"selected":"")+'>'+esc(c.name)+'</option>').join("")+'</select>'}
 async function saveNewCategory(){
  const name=$("newCategoryName").value.trim(),description=$("newCategoryDescription").value.trim(),color=$("newCategoryColor").value,file=$("newCategoryImage").files[0];
- if(!name){$("adminMsg").textContent="Inserisci il nome della categoria.";return}
+ if(!name){$("adminMsg").textContent="Inserisci il nome della collezione.";return}
  try{let image_path=await uploadCategoryImage(file,name.toLowerCase().replace(/[^a-z0-9]+/g,"-"));const {error}=await db.from("categories").insert({name,description,color,image_path});if(error)throw error;
-  $("newCategoryName").value="";$("newCategoryDescription").value="";$("newCategoryImage").value="";await loadCategories();showAdmin();$("adminMsg").textContent="Categoria creata.";
- }catch(e){$("adminMsg").textContent="Errore categoria: "+e.message}
+  $("newCategoryName").value="";$("newCategoryDescription").value="";$("newCategoryImage").value="";await loadCategories();showAdmin();$("adminMsg").textContent="Collezione creata.";
+ }catch(e){$("adminMsg").textContent="Errore collezione: "+e.message}
 }
 async function showCategoryOverview(){
  await loadCategories();const panel=$("categoryPanel"),list=$("categoryOverview");list.replaceChildren();
@@ -251,7 +251,7 @@ async function showAdmin(){
  $("coinList").innerHTML="";$("categoryAdminList").replaceChildren();
  categories.forEach(cat=>{
   const d=document.createElement("div");d.className="category-admin-row";
-  d.innerHTML='<label>Nome<input data-name maxlength="60" value="'+esc(cat.name)+'"></label><label>Descrizione<textarea data-description maxlength="500">'+esc(cat.description||"")+'</textarea></label><label>Colore<input data-color type="color" value="'+esc(cat.color||"#ff6eae")+'"></label><label>Immagine generale<input data-file type="file" accept="image/png,image/jpeg,image/webp"></label>'+(cat.image_path?'<img class="category-admin-preview" src="'+esc(categoryImage(cat.image_path))+'" alt="Immagine categoria">':'')+'<button class="primary" data-save>Salva categoria</button><button class="danger" data-delete>Elimina categoria</button>';
+  d.innerHTML='<label>Nome<input data-name maxlength="60" value="'+esc(cat.name)+'"></label><label>Descrizione<textarea data-description maxlength="500">'+esc(cat.description||"")+'</textarea></label><label>Colore<input data-color type="color" value="'+esc(cat.color||"#ff6eae")+'"></label><label>Immagine generale<input data-file type="file" accept="image/png,image/jpeg,image/webp"></label>'+(cat.image_path?'<img class="category-admin-preview" src="'+esc(categoryImage(cat.image_path))+'" alt="Immagine collezione">':'')+'<button class="primary" data-save>Salva collezione</button><button class="danger" data-delete>Elimina collezione</button>';
   $("categoryAdminList").appendChild(d);
   d.querySelector("[data-save]").onclick=async()=>{try{
    const newName=d.querySelector("[data-name]").value.trim();if(!newName)throw Error("Il nome è obbligatorio.");
@@ -259,14 +259,14 @@ async function showAdmin(){
    const f=d.querySelector("[data-file]").files[0];if(f)patch.image_path=await uploadCategoryImage(f,newName.toLowerCase().replace(/[^a-z0-9]+/g,"-"));
    if(newName!==cat.name){const moved=await db.from("coins").update({category:newName,color:patch.color}).eq("category",cat.name);if(moved.error)throw moved.error}
    const saved=await db.from("categories").update(patch).eq("id",cat.id);if(saved.error)throw saved.error;
-   await loadCoins();showAdmin();$("adminMsg").textContent="Categoria aggiornata.";
+   await loadCoins();showAdmin();$("adminMsg").textContent="Collezione aggiornata.";
   }catch(e){$("adminMsg").textContent=e.message}};
-  d.querySelector("[data-delete]").onclick=async()=>{const used=coins.some(c=>(c.category||"Generale")===cat.name);if(used){$("adminMsg").textContent="Prima assegna le monete a un'altra categoria.";return}if(cat.name==="Generale"){ $("adminMsg").textContent="La categoria Generale non può essere eliminata.";return}if(!confirm("Eliminare la categoria "+cat.name+"?"))return;const del=await db.from("categories").delete().eq("id",cat.id);if(del.error){$("adminMsg").textContent=del.error.message;return}await loadCategories();showAdmin()};
+  d.querySelector("[data-delete]").onclick=async()=>{const used=coins.some(c=>(c.category||"Generale")===cat.name);if(used){$("adminMsg").textContent="Prima assegna le monete a un'altra collezione.";return}if(cat.name==="Generale"){ $("adminMsg").textContent="La collezione Generale non può essere eliminata.";return}if(!confirm("Eliminare la collezione "+cat.name+"?"))return;const del=await db.from("categories").delete().eq("id",cat.id);if(del.error){$("adminMsg").textContent=del.error.message;return}await loadCategories();showAdmin()};
  });
  data.forEach(c=>{
   let d=document.createElement("div");d.className="coin-admin-row";
   const preview=c.image_path?categoryImage(c.image_path):"";
-  d.innerHTML='<b>'+esc(c.code)+'</b>'+(preview?'<img class="coin-admin-preview" src="'+esc(preview)+'" alt="Immagine attuale">':'<p class="no-image">Nessuna immagine caricata</p>')+'<label>Nome <input type="text" maxlength="80" value="'+esc(c.name||"")+'" data-name></label><label>Categoria '+categorySelect(c.category||"Generale")+'</label><label>Descrizione <textarea maxlength="500" data-description>'+esc(c.description||"")+'</textarea></label><label>Lat <input type="number" step=".000001" value="'+c.latitude+'" data-lat></label><label>Lon <input type="number" step=".000001" value="'+c.longitude+'" data-lon></label><label>Immagine <input type="file" accept="image/png,image/jpeg,image/webp" data-file></label><button class="primary" data-save>Salva</button><button class="danger" data-delete>Rimuovi moneta</button>';
+  d.innerHTML='<b>'+esc(c.code)+'</b>'+(preview?'<img class="coin-admin-preview" src="'+esc(preview)+'" alt="Immagine attuale">':'<p class="no-image">Nessuna immagine caricata</p>')+'<label>Nome <input type="text" maxlength="80" value="'+esc(c.name||"")+'" data-name></label><label>Collezione '+categorySelect(c.category||"Generale")+'</label><label>Descrizione <textarea maxlength="500" data-description>'+esc(c.description||"")+'</textarea></label><label>Lat <input type="number" step=".000001" value="'+c.latitude+'" data-lat></label><label>Lon <input type="number" step=".000001" value="'+c.longitude+'" data-lon></label><label>Immagine <input type="file" accept="image/png,image/jpeg,image/webp" data-file></label><button class="primary" data-save>Salva</button><button class="danger" data-delete>Rimuovi moneta</button>';
   $("coinList").appendChild(d);
   d.querySelector("[data-delete]").onclick=async()=>{if(!confirm("Rimuovere questa moneta dal gioco?"))return;const del=await db.from("coins").delete().eq("id",c.id);if(del.error){$("adminMsg").textContent=del.error.message;return}await loadCoins();showAdmin()};
   d.querySelector("[data-save]").onclick=async()=>{
