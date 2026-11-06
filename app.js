@@ -1,5 +1,5 @@
-/* STREET COINS V28 */
-const APP_VERSION="V28";
+/* STREET COINS V29 */
+const APP_VERSION="V29";
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
@@ -66,7 +66,7 @@ async function syncUser(){
   const [a,c]=await Promise.all([db.from("admins").select("user_id").eq("user_id",user.id).maybeSingle(),db.from("coin_collections").select("coin_id").eq("user_id",user.id)]);
   admin=!!a.data;if(c.data)collected=new Set(c.data.map(x=>x.coin_id));
  }
- account.textContent=user?(admin?"Admin":"Account"):"Accedi";updateCount();draw();
+ account.textContent=user?(admin?"Admin":"Profilo"):"Accedi";updateCount();draw();
 }
 async function collect(c){
  if(!user){say("Accedi per raccogliere questa moneta.");$("authPanel").classList.remove("hidden");$("authMsg").textContent="Accedi o crea un account per salvare le monete.";return}
@@ -142,15 +142,15 @@ function interpolate(nodes,spacing){let out=[],carry=0;for(let i=1;i<nodes.lengt
 async function seed(){
  $("seedCoins").disabled=true;$("adminMsg").textContent="Controllo e preparo le posizioni sulle strade di Trento…";
  try{
-  let {count,error}=await db.from("coins").select("*",{count:"exact",head:true});if(error)throw error;if(count){$("adminMsg").textContent=`Esistono già ${count} monete. Non ne creo altre.`;return}
+  let {count,error}=await db.from("coins").select("*",{count:"exact",head:true});if(error)throw error;if(count){$("adminMsg").textContent=`Nel database sono già presenti ${count} monete. Non ne creo altre.`;return}
   let ways=await fetchTrentoWays(),pts=[];ways.forEach(w=>{if(w.geometry?.length>1)pts.push(...interpolate(w.geometry,65))});
   pts=pts.filter(p=>dist(TRENT0,{lat:p.latitude,lon:p.longitude})<SEED_RADIUS*.98);
   for(let i=pts.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[pts[i],pts[j]]=[pts[j],pts[i]]}
   let chosen=[];for(let p of pts){if(chosen.every(q=>dist({lat:p.latitude,lon:p.longitude},{lat:q.latitude,lon:q.longitude})>45))chosen.push(p);if(chosen.length===100)break}
-  if(chosen.length!==100)throw Error(`Trovate solo ${chosen.length} posizioni. Riprova.`);
-  let rows=chosen.map((p,i)=>({code:`TR-${String(i+1).padStart(3,"0")}`,latitude:p.latitude,longitude:p.longitude,color:"#ff6eae"}));
+  if(chosen.length!==10)throw Error(`Trovate solo ${chosen.length} posizioni. Riprova.`);
+  let rows=chosen.map((p,i)=>({code:`TR-${String(i+1).padStart(3,"0")}`,name:`Moneta di Trento ${i+1}`,description:"Una moneta da scoprire esplorando la città.",latitude:p.latitude,longitude:p.longitude,color:"#ff6eae"}));
   let ins=await db.from("coins").insert(rows);if(ins.error)throw ins.error;
-  await loadCoins();$("adminMsg").textContent="Create 100 monete fisse a Trento. Ora le coordinate sono salvate nel database.";
+  await loadCoins();$("adminMsg").textContent="Create 10 monete condivise a Trento.";
  }catch(e){$("adminMsg").textContent=e.message||"Errore nella creazione delle monete"}
  finally{$("seedCoins").disabled=false}
 }
@@ -161,8 +161,9 @@ async function showAdmin(){
  data.forEach(c=>{
   let d=document.createElement("div");d.className="coin-admin-row";
   const preview=c.image_path?db.storage.from("coin-images").getPublicUrl(c.image_path).data.publicUrl:"";
-  d.innerHTML=`<b>${esc(c.code)}</b>${preview?`<img class="coin-admin-preview" src="${esc(preview)}" alt="Immagine attuale">`:'<p class="no-image">Nessuna immagine caricata</p>'}<label>Nome <input type="text" maxlength="80" value="${esc(c.name||"")}" data-name placeholder="Nome della moneta"></label><label>Descrizione <textarea maxlength="500" data-description placeholder="Descrizione della moneta">${esc(c.description||"")}</textarea></label><label>Lat <input type="number" step=".000001" value="${c.latitude}" data-lat></label><label>Lon <input type="number" step=".000001" value="${c.longitude}" data-lon></label><label>Colore <input type="color" value="${esc(c.color||"#ff6eae")}" data-color></label><label>Immagine <input type="file" accept="image/png,image/jpeg,image/webp" data-file></label><button class="primary" data-save>Salva</button>`;
+  d.innerHTML=`<b>${esc(c.code)}</b><button class="danger" data-delete>Rimuovi moneta</button>${preview?`<img class="coin-admin-preview" src="${esc(preview)}" alt="Immagine attuale">`:'<p class="no-image">Nessuna immagine caricata</p>'}<label>Nome <input type="text" maxlength="80" value="${esc(c.name||"")}" data-name placeholder="Nome della moneta"></label><label>Descrizione <textarea maxlength="500" data-description placeholder="Descrizione della moneta">${esc(c.description||"")}</textarea></label><label>Lat <input type="number" step=".000001" value="${c.latitude}" data-lat></label><label>Lon <input type="number" step=".000001" value="${c.longitude}" data-lon></label><label>Colore <input type="color" value="${esc(c.color||"#ff6eae")}" data-color></label><label>Immagine <input type="file" accept="image/png,image/jpeg,image/webp" data-file></label><button class="primary" data-save>Salva</button>`;
   $("coinList").appendChild(d);
+  d.querySelector("[data-delete]").onclick=async()=>{if(!confirm("Rimuovere questa moneta dal gioco?"))return;const del=await db.from("coins").delete().eq("id",c.id);if(del.error){$("adminMsg").textContent=del.error.message;return}await loadCoins();showAdmin()};
   d.querySelector("[data-save]").onclick=async()=>{
    let patch={name:d.querySelector("[data-name]").value.trim(),description:d.querySelector("[data-description]").value.trim(),latitude:Number(d.querySelector("[data-lat]").value),longitude:Number(d.querySelector("[data-lon]").value),color:d.querySelector("[data-color]").value};
    let f=d.querySelector("[data-file]").files[0];
