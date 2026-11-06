@@ -1,5 +1,5 @@
-/* STREET COINS V48 */
-const APP_VERSION="V48";
+/* STREET COINS V49 */
+const APP_VERSION="V49";
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
@@ -45,7 +45,7 @@ function updateCount(){
  $("bonusCount").textContent=1+Math.floor(collected.size/10);bonus.disabled=!user||!position;
  const box=$("categoryCounterRows");if(!box)return;box.replaceChildren();
  categories.forEach(cat=>{const items=coins.filter(c=>(c.category||"Generale")===cat.name),got=items.filter(c=>collected.has(c.id)).length;if(!items.length)return;
-  const row=document.createElement("span");row.className="counter-category";const dot=document.createElement("i");dot.style.background=cat.color||"#ff6eae";const label=document.createElement("b");label.textContent=got+"/"+items.length;row.append(dot,label);box.appendChild(row);
+  const row=document.createElement("span");row.className="counter-category";const dot=document.createElement("i");dot.style.background=cat.color||"#ff6eae";const mark=document.createElement("span");mark.className="counter-category-icon";if(cat.icon_image_path){const img=document.createElement("img");img.src=categoryImage(cat.icon_image_path);img.alt="";mark.appendChild(img)}else mark.textContent=cat.icon_symbol||"✦";const label=document.createElement("b");label.textContent=got+"/"+items.length;row.append(dot,mark,label);box.appendChild(row);
  });
 }
 function categoryColor(name,fallback){return categories.find(x=>x.name===name)?.color||fallback||"#ff6eae"}
@@ -207,28 +207,28 @@ function openStreetCardDetail(c){
  modal.classList.remove("hidden");
 }
 
-async function showProfile(){
+function albumCardMarkup(c,owned){
+ const color=categoryColor(c.category,c.color),mark=collectionIconMarkup(c.category),photo=owned&&c.image_path?'<img src="'+esc(categoryImage(c.image_path))+'" alt="">':'<span class="coin-sticker-placeholder">'+(owned?"✦":"?")+'</span>';
+ return '<div class="album-card-display '+(owned?"is-owned":"is-locked")+'" style="--coin-color:'+esc(color)+'"><div class="coin-sticker '+(owned?"collected":"")+'">'+photo+'<i class="coin-sticker-shine"></i><i class="coin-card-frame"></i><i class="coin-card-emblem">'+mark+'</i></div></div>';
+}
+function showProfile(){
  if(!user){$("authPanel").classList.remove("hidden");return}
  const meta=user.user_metadata||{},name=meta.display_name||meta.full_name||meta.name||meta.nickname||(user.email||"").split("@")[0]||"Giocatore";
  $("profileName").textContent=name;$("profileEmail").textContent=user.email||"";$("profileAvatar").replaceChildren();
  if(avatarUrl){const img=document.createElement("img");img.src=avatarUrl;img.alt="Avatar";$("profileAvatar").appendChild(img)}else{$("profileAvatar").textContent="★"}
  $("profileStats").textContent=collected.size+" / "+coins.length+" Street Cards raccolte";renderGoals();
- const list=$("profileCollection");list.replaceChildren();
- const groups=new Map();coins.forEach(c=>{const category=(c.category||"Generale").trim()||"Generale";if(!groups.has(category))groups.set(category,[]);groups.get(category).push(c)});
+ const list=$("profileCollection");list.replaceChildren();const groups=new Map();
+ coins.forEach(c=>{const category=(c.category||"Generale").trim()||"Generale";if(!groups.has(category))groups.set(category,[]);groups.get(category).push(c)});
  if(!groups.size){const p=document.createElement("p");p.className="profile-empty";p.textContent="L'album è ancora vuoto.";list.appendChild(p)}
- groups.forEach((items,category)=>{const section=document.createElement("section");section.className="album-category";
-  const head=document.createElement("div");head.className="album-category-head";const title=document.createElement("h4");title.textContent=category;title.style.borderLeftColor=items[0].color||"#ff6eae";const count=document.createElement("b");const got=items.filter(c=>collected.has(c.id)).length;count.textContent=got+" / "+items.length;head.append(title,count);section.appendChild(head);
-  const grid=document.createElement("div");grid.className="album-grid";
-  items.forEach(c=>{const owned=collected.has(c.id),slot=document.createElement("div");slot.className="album-slot "+(owned?"is-collected":"is-missing");slot.style.setProperty("--category-color",c.color||"#ff6eae");
-   const art=document.createElement("div");art.className="album-art";
-   if(owned&&c.image_path){const img=document.createElement("img");img.src=db.storage.from("coin-images").getPublicUrl(c.image_path).data.publicUrl;img.alt=c.name||c.code;art.appendChild(img)}
-   else{const mark=document.createElement("span");mark.textContent=owned?"★":"?";art.appendChild(mark)}
-   const label=document.createElement("b");label.textContent=owned?(c.name||c.code):"Da trovare";
-   slot.append(art,label);
-   if(owned){slot.classList.add("is-openable");slot.setAttribute("role","button");slot.tabIndex=0;slot.setAttribute("aria-label","Apri Street Card "+(c.name||c.code));slot.onclick=()=>openStreetCardDetail(c);slot.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openStreetCardDetail(c)}}}
-   if(owned){const stamp=document.createElement("small");const collectedAt=collectionDates.get(c.id);stamp.textContent=collectedAt?new Date(collectedAt).toLocaleString("it-IT",{dateStyle:"short",timeStyle:"short"}):"Raccolta";slot.appendChild(stamp)}
-   grid.appendChild(slot);
-  });section.appendChild(grid);list.appendChild(section);
+ groups.forEach((items,category)=>{
+  const cat=categories.find(x=>x.name===category)||{},color=cat.color||items[0]?.color||"#ff6eae",got=items.filter(c=>collected.has(c.id)).length;
+  const section=document.createElement("section");section.className="album-category album-collection-page";section.style.setProperty("--category-color",color);
+  const banner=document.createElement("div");banner.className="album-collection-banner";if(cat.image_path)banner.style.backgroundImage='linear-gradient(90deg,rgba(20,16,27,.92),rgba(20,16,27,.52)),url("'+esc(categoryImage(cat.image_path))+'")';
+  const emblem=document.createElement("div");emblem.className="album-collection-icon";emblem.innerHTML=collectionIconMarkup(category);
+  const info=document.createElement("div");info.className="album-collection-info";const title=document.createElement("h4");title.textContent=category;const desc=document.createElement("p");desc.textContent=cat.description||"Una collezione da esplorare e completare.";const count=document.createElement("b");count.textContent=got+" / "+items.length+" STREET CARDS";info.append(title,desc,count);banner.append(emblem,info);section.appendChild(banner);
+  const grid=document.createElement("div");grid.className="album-grid album-card-grid";
+  items.forEach(c=>{const owned=collected.has(c.id),slot=document.createElement("div");slot.className="album-slot album-card-slot "+(owned?"is-collected is-openable":"is-missing");slot.style.setProperty("--category-color",color);const art=document.createElement("div");art.className="album-card-art";art.innerHTML=albumCardMarkup(c,owned);const label=document.createElement("b");label.textContent=owned?(c.name||c.code):"Da trovare";const code=document.createElement("small");code.textContent=c.code||"";slot.append(art,label,code);if(owned){slot.setAttribute("role","button");slot.tabIndex=0;slot.setAttribute("aria-label","Apri Street Card "+(c.name||c.code));slot.onclick=()=>openStreetCardDetail(c);slot.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openStreetCardDetail(c)}}}grid.appendChild(slot)});
+  section.appendChild(grid);list.appendChild(section);
  });
  $("profilePanel").classList.remove("hidden");
 }

@@ -551,3 +551,27 @@ button:disabled { opacity:.45;cursor:not-allowed; }
 .coin-card-emblem span{font-size:11px;line-height:1}
 .coin-card-emblem img{width:100%!important;height:100%!important;object-fit:contain!important;padding:2px!important;background:#171720}
 .category-icon-preview{display:block;width:44px;height:44px;object-fit:contain;background:#201b27;border:1px solid #d9b8ca;padding:4px;border-radius:8px;margin:5px 0}
+
+/* V49 — album illustrato con le stesse Street Card della mappa */
+.counter-category-icon{display:inline-grid;place-items:center;width:13px;height:13px;overflow:hidden;font-size:11px;line-height:1}
+.counter-category-icon img{width:100%;height:100%;object-fit:contain}
+.album-collection-page{padding:0 0 12px!important;overflow:hidden;border:1px solid color-mix(in srgb,var(--category-color) 55%,#fff)!important;background:linear-gradient(180deg,color-mix(in srgb,var(--category-color) 9%,#fff),#fff 45%)!important;box-shadow:0 7px 20px color-mix(in srgb,var(--category-color) 17%,transparent)}
+.album-collection-banner{min-height:112px;display:flex;align-items:center;gap:13px;padding:15px;background:linear-gradient(115deg,color-mix(in srgb,var(--category-color) 72%,#17131e),#211c29);background-size:cover;background-position:center;color:#fff;border-bottom:3px solid var(--category-color)}
+.album-collection-icon{width:54px;height:54px;flex:0 0 54px;display:grid;place-items:center;border:1px solid var(--category-color);background:#171720dd;color:var(--category-color);box-shadow:0 0 0 3px #ffffff20,0 5px 16px #0006;font-size:29px}
+.album-collection-icon img{width:100%;height:100%;object-fit:contain;padding:7px}
+.album-collection-info{min-width:0}.album-collection-info h4{margin:0 0 4px;font-size:20px;line-height:1.1;color:#fff}.album-collection-info p{margin:0 0 7px;font-size:11px;line-height:1.3;color:#f6eaf1}.album-collection-info>b{font-size:9px;letter-spacing:1.1px;color:var(--category-color)}
+.album-card-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:14px 10px 4px}
+.album-card-slot{padding:0!important;border:0!important;background:transparent!important;box-shadow:none!important;opacity:1!important;display:flex;flex-direction:column;align-items:center;min-width:0}
+.album-card-art{width:100%;min-height:110px;display:flex;justify-content:center;align-items:flex-start;overflow:visible;padding:2px 0 8px}
+.album-card-display{position:relative;width:76px;height:91px;display:flex;justify-content:center;align-items:flex-start;filter:drop-shadow(0 4px 6px color-mix(in srgb,var(--coin-color) 40%,transparent))}
+.album-card-display .coin-sticker{width:52px;height:66px;flex:0 0 52px;position:relative;box-sizing:border-box;border:1px solid #20202a!important;border-radius:0!important;background:linear-gradient(145deg,#343440,#101018 65%,#292936)!important;box-shadow:0 0 0 1px #f4f0f4,0 3px 8px #17121c88!important;overflow:hidden;animation:none!important}
+.album-card-display .coin-sticker img{position:absolute;inset:3px!important;width:calc(100% - 6px)!important;height:calc(100% - 6px)!important;object-fit:cover!important;object-position:center!important}
+.album-card-display .coin-sticker-placeholder{position:absolute;inset:3px;width:auto;height:auto;display:grid;place-items:center;color:var(--coin-color);font-size:27px;background:linear-gradient(145deg,#fff,#eee2eb)}
+.album-card-display .coin-card-frame{position:absolute;z-index:4;inset:0;pointer-events:none;border:1px solid var(--coin-color);background:linear-gradient(var(--coin-color),var(--coin-color)) left 2px top 2px/10px 1px no-repeat,linear-gradient(var(--coin-color),var(--coin-color)) left 2px top 2px/1px 10px no-repeat,linear-gradient(var(--coin-color),var(--coin-color)) right 2px top 2px/10px 1px no-repeat,linear-gradient(var(--coin-color),var(--coin-color)) right 2px top 2px/1px 10px no-repeat,linear-gradient(var(--coin-color),var(--coin-color)) left 2px bottom 2px/10px 1px no-repeat,linear-gradient(var(--coin-color),var(--coin-color)) left 2px bottom 2px/1px 10px no-repeat,linear-gradient(var(--coin-color),var(--coin-color)) right 2px bottom 2px/10px 1px no-repeat,linear-gradient(var(--coin-color),var(--coin-color)) right 2px bottom 2px/1px 10px no-repeat}
+.album-card-display .coin-card-frame::after{right:4px;bottom:16px;width:6px;height:14px;background:var(--coin-color);clip-path:polygon(100% 0,100% 100%,0 72%,35% 50%,0 28%)}
+.album-card-display .coin-card-emblem{position:absolute;z-index:7;top:3px;left:50%;transform:translateX(-50%);width:17px;height:17px;display:grid;place-items:center;color:var(--coin-color);background:#171720;border:1px solid var(--coin-color);border-radius:50%;overflow:hidden}
+.album-card-display .coin-card-emblem span{font-size:11px;line-height:1}.album-card-display .coin-card-emblem img{width:100%!important;height:100%!important;object-fit:contain!important;padding:2px!important;background:#171720}
+.album-card-display .coin-sticker-shine{z-index:6}.album-card-display.is-locked{opacity:.48;filter:grayscale(.65) drop-shadow(0 3px 4px #0002)}
+.album-card-slot>b{width:100%;margin:0!important;min-height:2.5em;font-size:10px!important;line-height:1.2;text-align:center;color:#392b38;overflow-wrap:anywhere}.album-card-slot>small{font-size:9px;color:#927487}
+.album-card-slot.is-openable:active .album-card-display{transform:scale(.95)}
+@media(min-width:430px){.album-card-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}@media(min-width:700px){.album-card-grid{grid-template-columns:repeat(5,minmax(0,1fr))}}
