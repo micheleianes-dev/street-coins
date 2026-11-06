@@ -1,5 +1,5 @@
-/* STREET COINS V34 */
-const APP_VERSION="V34";
+/* STREET COINS V35 */
+const APP_VERSION="V35";
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
@@ -10,7 +10,7 @@ L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=
 L.control.zoom({position:"bottomright"}).addTo(map);
 const layer=L.layerGroup().addTo(map),$=id=>document.getElementById(id);
 map.on("click",e=>{const lat=e.latlng.lat,lon=e.latlng.lng;L.popup().setLatLng(e.latlng).setContent(`<div class="coord-popup"><b>Punto selezionato</b><br>Latitudine: ${lat.toFixed(6)}<br>Longitudine: ${lon.toFixed(6)}</div>`).openOn(map)});
-let user=null,admin=false,position=null,accuracy=999,watch=null,coins=[],collected=new Set(),collectionDates=new Map(),pendingCollections=new Set(),avatarUrl="",bonusMode=false,audioCtx=null,lastGpsFix=null,headingAnchor=null,gpsWatchdog=null,playerMoving=false,movingSince=0,directionMarker=null,hasInitialGpsView=false,stableHeading=null,lastHeadingUpdate=0;
+let user=null,admin=false,position=null,accuracy=999,watch=null,coins=[],collected=new Set(),collectionDates=new Map(),pendingCollections=new Set(),avatarUrl="",bonusMode=false,audioCtx=null,lastGpsFix=null,headingAnchor=null,gpsWatchdog=null,playerMoving=false,movingSince=0,movementActive=false,hasInitialGpsView=false,stableHeading=null,lastHeadingUpdate=0;
 $("appVersion").textContent=APP_VERSION;
 const status=$("status"),locate=$("locateBtn"),account=$("accountBtn"),bonus=$("bonusBtn"),refresh=$("refreshBtn"),recenter=$("recenterBtn");
 function say(s){status.textContent=s}
@@ -43,20 +43,16 @@ function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&l
 function updateCount(){$("coinCount").textContent=collected.size;$("bonusCount").textContent=1+Math.floor(collected.size/10);bonus.disabled=!user||!position}
 function playerIcon(){
  const inner=avatarUrl?'<img src="'+esc(avatarUrl)+'" alt="">':'<span>★</span>';
- return L.divIcon({className:"player-avatar-icon",html:'<div class="player-avatar-marker">'+inner+'</div>',iconSize:[50,50],iconAnchor:[25,25]});
+ const walking=movementActive?' is-walking':'';
+ const arrow=movementActive&&Number.isFinite(stableHeading)?'<i class="player-direction-arrow" style="--heading:'+stableHeading+'deg"></i>':'';
+ return L.divIcon({className:"player-avatar-icon",html:'<div class="player-avatar-marker'+walking+'"><div class="player-avatar-face">'+inner+'</div>'+arrow+'<i class="player-leg leg-left"></i><i class="player-leg leg-right"></i></div>',iconSize:[50,64],iconAnchor:[25,25]});
 }
 function updatePlayerMarker(){if(window.player&&map.hasLayer(window.player))window.player.setIcon(playerIcon());}
-function directionArrowIcon(heading){
- const svg='<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2 L29 28 L16 21 L3 28 Z" fill="#287cff" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/></svg>';
- return L.divIcon({className:"direction-arrow-icon",html:'<div class="direction-arrow" style="transform:rotate('+heading+'deg)">'+svg+'</div>',iconSize:[30,30],iconAnchor:[-12,15]});
-}
 function updateDirectionArrow(stamp,heading){
- if(!playerMoving){movingSince=0;if(directionMarker&&map.hasLayer(directionMarker))map.removeLayer(directionMarker);directionMarker=null;return}
+ if(!playerMoving){movingSince=0;movementActive=false;return}
  if(!movingSince)movingSince=stamp;
- if(stamp-movingSince<2800||heading===null||!Number.isFinite(heading))return;
- const arrowIcon=directionArrowIcon(heading);
- if(!directionMarker||!map.hasLayer(directionMarker))directionMarker=L.marker([position.lat,position.lon],{icon:arrowIcon,interactive:false,zIndexOffset:1100}).addTo(map);
- else{directionMarker.setLatLng([position.lat,position.lon]);directionMarker.setIcon(arrowIcon)}
+ if(heading!==null&&Number.isFinite(heading))stableHeading=heading;
+ movementActive=stamp-movingSince>=2800&&stableHeading!==null&&Number.isFinite(stableHeading);
 }
 function icon(c){let inner=c.image_path?`<img src="${db.storage.from("coin-images").getPublicUrl(c.image_path).data.publicUrl}">`:"<span>★</span>";return L.divIcon({className:"",html:`<div class="coin-marker ${collected.has(c.id)?"collected":""}" style="background:${esc(c.color||"#ff6eae")}">${inner}</div>`,iconSize:[42,42],iconAnchor:[21,21]})}
 function draw(){layer.clearLayers();coins.forEach(c=>{c.marker=L.marker([c.latitude,c.longitude],{icon:icon(c)}).addTo(layer);c.marker.bindPopup(`<div class="coin-popup"><b>${esc(c.name||c.code)}</b><p>${esc(c.description||"Nessuna descrizione disponibile.")}</p>${collected.has(c.id)?'<small>Già raccolta da te</small>':""}</div>`);c.marker.on("click",()=>{const el=c.marker.getElement()?.querySelector(".coin-marker");if(el){el.classList.remove("coin-tap");void el.offsetWidth;el.classList.add("coin-tap")}if(bonusMode||(position&&dist(position,{lat:c.latitude,lon:c.longitude})<=collectionRadius()))collect(c)})})}
@@ -118,10 +114,10 @@ function startGPS(){
   updateDirectionArrow(stamp,movementHeading!==null?movementHeading:stableHeading);
   if(!window.player||!map.hasLayer(window.player)){
    window.player=L.marker([position.lat,position.lon],{icon:playerIcon(),zIndexOffset:1000}).addTo(map);
-   window.playerMovingState=playerMoving;
+   
   }else{
    window.player.setLatLng([position.lat,position.lon]);
-   if(window.playerMovingState!==playerMoving){window.player.setIcon(playerIcon());window.playerMovingState=playerMoving}
+   window.player.setIcon(playerIcon());
   }
   if(!window.circle||!map.hasLayer(window.circle)){
    window.circle=L.circle([position.lat,position.lon],{radius:accuracy,color:"#287cff",weight:1,fillOpacity:.07}).addTo(map);
