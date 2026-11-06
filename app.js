@@ -161,6 +161,19 @@ async function addCoin(){
  if(result.error){$("adminMsg").textContent="Errore: "+result.error.message;return}
  await loadCoins();$("adminMsg").textContent="Moneta aggiunta e visibile a tutti.";showAdmin();
 }
+async function showProfile(){
+ if(!user){$("authPanel").classList.remove("hidden");return}
+ const meta=user.user_metadata||{},name=meta.display_name||meta.full_name||meta.name||meta.nickname||(user.email||"").split("@")[0]||"Giocatore",avatar=meta.avatar_url||meta.picture||"";
+ $("profileName").textContent=name;$("profileEmail").textContent=user.email||"";$("profileAvatar").textContent=avatar?"":"🐦";
+ if(avatar){const img=document.createElement("img");img.src=avatar;img.alt="Avatar";$("profileAvatar").appendChild(img)}
+ $("profileStats").textContent=collected.size+" / "+coins.length+" monete raccolte";
+ const list=$("profileCollection");list.replaceChildren();const owned=coins.filter(c=>collected.has(c.id));
+ if(!owned.length){const p=document.createElement("p");p.textContent="Non hai ancora raccolto monete. Esplora Trento per iniziare!";list.appendChild(p)}
+ owned.forEach(c=>{const row=document.createElement("div");row.className="profile-coin";const title=document.createElement("b");title.textContent=c.name||c.code;const desc=document.createElement("small");desc.textContent=c.description||"Moneta raccolta";row.append(title,desc);list.appendChild(row)});
+ const medals=[{n:1,t:"Prima scoperta",d:"Raccogli la tua prima moneta"},{n:5,t:"Collezionista",d:"Raccogli 5 monete"},{n:10,t:"Tesoro di Trento",d:"Completa le 10 monete iniziali"}];const box=$("profileMedals");box.replaceChildren();
+ medals.forEach(m=>{const row=document.createElement("div");row.className="medal "+(collected.size>=m.n?"unlocked":"locked");const title=document.createElement("b");title.textContent=(collected.size>=m.n?"🏅 ":"🔒 ")+m.t;const desc=document.createElement("small");desc.textContent=m.d;row.append(title,desc);box.appendChild(row)});
+ $("profilePanel").classList.remove("hidden");
+}
 async function showAdmin(){
  $("adminPanel").classList.remove("hidden");$("adminMsg").textContent=user.email;
  let {data,error}=await db.from("coins").select("*").order("code");if(error){$("coinList").textContent=error.message;return}
@@ -180,8 +193,8 @@ async function showAdmin(){
   }
  })
 }
-account.onclick=async()=>{if(!user){$("authPanel").classList.remove("hidden");return}if(admin){showAdmin();return}if(confirm("Vuoi uscire dall'account?")){await db.auth.signOut();await syncUser()}}
-$("authClose").onclick=()=>$("authPanel").classList.add("hidden");$("adminClose").onclick=()=>$("adminPanel").classList.add("hidden");$("adminBack").onclick=()=>$("adminPanel").classList.add("hidden");$("victoryNext").onclick=()=>$("victoryPanel").classList.add("hidden");
+account.onclick=async()=>{if(!user){$("authPanel").classList.remove("hidden");return}if(admin){showAdmin();return}showProfile()}
+$("authClose").onclick=()=>$("authPanel").classList.add("hidden");$("profileClose").onclick=()=>$("profilePanel").classList.add("hidden");document.querySelectorAll("[data-profile-tab]").forEach(btn=>btn.onclick=()=>{document.querySelectorAll("[data-profile-tab]").forEach(x=>x.classList.toggle("active",x===btn));document.querySelectorAll(".profile-tab-content").forEach(x=>x.classList.toggle("hidden",x.id!=="profile-"+btn.dataset.profileTab))});$("adminClose").onclick=()=>$("adminPanel").classList.add("hidden");$("adminBack").onclick=()=>$("adminPanel").classList.add("hidden");$("victoryNext").onclick=()=>$("victoryPanel").classList.add("hidden");
 $("login").onclick=async()=>{let r=await db.auth.signInWithPassword({email:$("email").value.trim(),password:$("password").value});$("authMsg").textContent=r.error?.message||"Accesso effettuato";if(!r.error){$("authPanel").classList.add("hidden");await syncUser();if(admin)showAdmin()}}
 $("signup").onclick=async()=>{let r=await db.auth.signUp({email:$("email").value.trim(),password:$("password").value});$("authMsg").textContent=r.error?.message||"Registrazione avviata: controlla la posta per confermare l'email."}
 $("seedCoins").onclick=seed;$("addCoin").onclick=addCoin;locate.onclick=startGPS;recenter.onclick=()=>{if(position){map.setView([position.lat,position.lon],map.getZoom(),{animate:false})}};refresh.onclick=()=>loadCoins().then(n=>say(`${n} monete caricate`)).catch(e=>say(e.message));
