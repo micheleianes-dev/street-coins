@@ -157,3 +157,6 @@ button:disabled { opacity:.45;cursor:not-allowed; }
 
 /* V31 — pulsante Profilo sempre visibile e cliccabile */
 .profile-shortcut{display:block!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;position:relative;z-index:1300;flex:0 0 82px;min-width:82px;height:auto;align-self:stretch;background:#fff8fc;color:#553047;border:3px solid #553047;border-radius:20px;font-size:14px;font-weight:1000;box-shadow:0 5px 0 #553047,0 8px 14px #55304730}.controls{pointer-events:auto}.controls>*{pointer-events:auto}
+
+/* V32 — scorciatoia contestuale Profilo/Admin */
+.profile-shortcut{display:flex!important;align-items:center;justify-content:center;visibility:visible!important;opacity:1!important;pointer-events:auto!important;position:relative;z-index:1300;flex:0 0 82px;min-width:82px;height:auto;align-self:stretch;background:#fff8fc;color:#553047;border:3px solid #553047;border-radius:20px;font-size:14px;font-weight:1000;box-shadow:0 5px 0 #553047,0 8px 14px #55304730}.controls{pointer-events:auto}.controls>*{pointer-events:auto}
