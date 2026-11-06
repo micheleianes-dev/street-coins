@@ -1,5 +1,5 @@
-/* STREET COINS V43 */
-const APP_VERSION="V43";
+/* STREET COINS V44 */
+const APP_VERSION="V44";
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
@@ -65,7 +65,7 @@ function updateDirectionArrow(stamp,heading){
 }
 function icon(c){
  const color=categoryColor(c.category,c.color),photo=c.image_path?'<img src="'+esc(categoryImage(c.image_path))+'" alt="">':'<span class="coin-sticker-placeholder">✦</span>';
- return L.divIcon({className:"coin-sticker-icon",html:'<div class="coin-sticker-wrap" style="--coin-color:'+esc(color)+'"><div class="coin-sticker '+(collected.has(c.id)?"collected":"")+'">'+photo+'<i class="coin-sticker-shine"></i></div><i class="coin-sticker-shadow"></i><i class="coin-location-pin"></i></div>',iconSize:[76,102],iconAnchor:[38,101]});
+ return L.divIcon({className:"coin-sticker-icon",html:'<div class="coin-sticker-wrap" style="--coin-color:'+esc(color)+'"><div class="coin-sticker '+(collected.has(c.id)?"collected":"")+'">'+photo+'<i class="coin-sticker-shine"></i><i class="coin-card-frame"></i><i class="coin-card-mark"></i></div><i class="coin-sticker-shadow"></i><i class="coin-location-pin"></i></div>',iconSize:[76,102],iconAnchor:[38,101]});
 }
 function draw(){layer.clearLayers();coins.forEach(c=>{c.marker=L.marker([c.latitude,c.longitude],{icon:icon(c)}).addTo(layer);c.marker.bindPopup(`<div class="coin-popup"><b>${esc(c.name||c.code)}</b><p>${esc(c.description||"Nessuna descrizione disponibile.")}</p>${collected.has(c.id)?'<small>Già raccolta da te</small>':""}</div>`);c.marker.on("click",()=>{const el=c.marker.getElement()?.querySelector(".coin-sticker");if(el){el.classList.remove("coin-sticker-tap");void el.offsetWidth;el.classList.add("coin-sticker-tap")}if(bonusMode||(position&&dist(position,{lat:c.latitude,lon:c.longitude})<=collectionRadius()))collect(c)})})}
 async function loadCategories(){const {data,error}=await db.from("categories").select("*").order("name");if(error)throw error;categories=data||[];updateCount();return categories}
