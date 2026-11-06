@@ -246,17 +246,21 @@ button:disabled { opacity:.45;cursor:not-allowed; }
 .admin-tabs{display:flex;gap:8px;position:sticky;top:-22px;z-index:5;padding:8px 0 12px;background:#fff8fc}.admin-tabs button{flex:1;background:#fff;color:#70445c;padding:11px 8px;font-size:13px;box-shadow:0 3px 0 #70445c}.admin-tabs button.active{background:#ff6eae;color:#fff;box-shadow:0 3px 0 #a92b68}.goal-card{display:flex;align-items:center;gap:14px;padding:13px;margin:10px 0;background:#fff;border:1px solid #efd4e1;border-radius:15px}.goal-card>div:last-child{min-width:0;display:flex;flex-direction:column;gap:5px}.goal-card b{font-size:13px}.goal-card small{font-size:10px;color:#956c82;line-height:1.35}.goal-card strong{font-size:11px;color:#70445c}.goal-ring{--progress:0%;width:68px;height:68px;flex:0 0 68px;display:grid;place-items:center;border-radius:50%;background:conic-gradient(#ff6eae var(--progress),#f3dce7 var(--progress));position:relative}.goal-ring::before{content:"";position:absolute;inset:7px;border-radius:50%;background:#fff8fc}.goal-ring span{position:relative;z-index:1;font-size:13px;font-weight:1000;color:#553047}
 
 
-/* V39 — cartolina sopra la moneta e colori dinamici per collezione */
-.coin-map-icon{background:transparent!important;border:0!important;}
-.coin-map-stack{position:relative;width:82px;height:104px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;filter:drop-shadow(0 3px 4px color-mix(in srgb,var(--coin-color) 48%,transparent));}
-.coin-postcard{position:relative;width:58px;height:62px;padding:4px 4px 13px;background:#fff;border:2px solid #fff;border-radius:4px;box-shadow:0 2px 0 color-mix(in srgb,var(--coin-color) 75%,#553047),0 4px 9px #34203355;transform:rotate(-4deg);z-index:2;}
-.coin-postcard::after{content:"";position:absolute;inset:2px;border:1px solid color-mix(in srgb,var(--coin-color) 45%,white);pointer-events:none;}
-.coin-postcard img{display:block;width:100%;height:100%;object-fit:cover;border-radius:1px;}
-.coin-postcard-label{position:absolute;left:3px;right:3px;bottom:1px;height:10px;overflow:hidden;text-align:center;white-space:nowrap;text-overflow:ellipsis;font:800 7px/10px "Trebuchet MS",sans-serif;color:#553047;}
-.coin-postcard-placeholder{display:grid;place-items:center;width:100%;height:100%;background:color-mix(in srgb,var(--coin-color) 18%,white);color:var(--coin-color);font-size:25px;}
-.coin-marker{position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:32px;height:32px;border:3px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--coin-color)!important;box-shadow:0 3px 0 color-mix(in srgb,var(--coin-color) 78%,#553047),0 5px 10px color-mix(in srgb,var(--coin-color) 48%,transparent),inset 0 0 0 2px color-mix(in srgb,var(--coin-color) 35%,white);}
-.coin-marker span{font-size:17px;color:#fff;text-shadow:1px 1px 0 color-mix(in srgb,var(--coin-color) 70%,#553047);}
-.coin-marker::before{border-color:var(--coin-color)!important;}
-.coin-marker img{display:none;}
-.coin-marker.collected{opacity:.35;}
-.coin-map-stack:has(.coin-marker.collected) .coin-postcard{opacity:.48;filter:grayscale(.5);}
+
+/* V40 — figurine da collezione: formato uniforme, bordo collezione e movimento */
+.coin-sticker-icon{background:transparent!important;border:0!important;}
+.coin-sticker-wrap{position:relative;width:72px;height:82px;display:flex;align-items:flex-start;justify-content:center;padding-top:3px;filter:drop-shadow(0 5px 7px color-mix(in srgb,var(--coin-color) 48%,transparent));}
+.coin-sticker{position:relative;isolation:isolate;width:54px;height:62px;overflow:hidden;border:3px solid var(--coin-color);border-radius:15px;background:linear-gradient(145deg,color-mix(in srgb,var(--coin-color) 24%,white),white 52%,color-mix(in srgb,var(--coin-color) 17%,white));box-shadow:0 0 0 2px #fff,0 0 0 4px color-mix(in srgb,var(--coin-color) 48%,transparent),0 5px 0 color-mix(in srgb,var(--coin-color) 68%,#553047),0 8px 15px color-mix(in srgb,var(--coin-color) 40%,transparent);transform-origin:50% 90%;animation:coinStickerHop 2.25s ease-in-out infinite;transition:transform .2s,filter .2s;}
+.coin-sticker img{display:block;width:100%;height:100%;object-fit:cover;border-radius:10px;}
+.coin-sticker-placeholder{display:grid;place-items:center;width:100%;height:100%;font-size:30px;font-weight:1000;color:var(--coin-color);background:radial-gradient(circle at 35% 25%,white,color-mix(in srgb,var(--coin-color) 25%,white) 75%);}
+.coin-sticker-shine{position:absolute;inset:-30% auto -30% -65%;width:45%;transform:rotate(24deg);background:linear-gradient(90deg,transparent,#ffffffaa,transparent);animation:coinStickerShine 3.8s ease-in-out infinite;pointer-events:none;}
+.coin-sticker-shadow{position:absolute;left:50%;bottom:4px;width:31px;height:7px;border-radius:50%;background:color-mix(in srgb,var(--coin-color) 34%,#553047);filter:blur(3px);transform:translateX(-50%);animation:coinStickerShadow 2.25s ease-in-out infinite;}
+.coin-sticker-wrap:active .coin-sticker{transform:scale(1.12) rotate(-5deg);}
+.coin-sticker.collected{animation:none;opacity:.42;filter:grayscale(.55);box-shadow:0 0 0 2px #fff,0 0 0 4px color-mix(in srgb,var(--coin-color) 35%,transparent),0 3px 0 color-mix(in srgb,var(--coin-color) 50%,#553047);}
+.coin-sticker.collected .coin-sticker-shine{display:none;}
+.coin-sticker-wrap:has(.coin-sticker.collected) .coin-sticker-shadow{animation:none;opacity:.35;transform:translateX(-50%) scale(.8);}
+@keyframes coinStickerHop{0%,100%{transform:translateY(0) rotate(-2deg) scale(1)}18%{transform:translateY(-5px) rotate(2deg) scale(1.025)}34%{transform:translateY(0) rotate(-1deg) scale(.985,1.02)}46%{transform:translateY(-2px) rotate(1deg) scale(1.01)}58%{transform:translateY(0) rotate(0) scale(1)}}
+@keyframes coinStickerShadow{0%,100%{opacity:.55;transform:translateX(-50%) scale(1)}18%,46%{opacity:.25;transform:translateX(-50%) scale(.72)}}
+@keyframes coinStickerShine{0%,58%{left:-65%;opacity:0}68%{opacity:.9}88%,100%{left:130%;opacity:0}}
+@media(hover:hover){.coin-sticker-wrap:hover .coin-sticker{transform:translateY(-5px) scale(1.08) rotate(-4deg);filter:saturate(1.18);}}
+@media(prefers-reduced-motion:reduce){.coin-sticker,.coin-sticker-shadow,.coin-sticker-shine{animation:none!important}}
