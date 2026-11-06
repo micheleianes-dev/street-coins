@@ -1,5 +1,5 @@
-/* STREET COINS V31 */
-const APP_VERSION="V31";
+/* STREET COINS V32 */
+const APP_VERSION="V32";
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
@@ -66,7 +66,7 @@ async function syncUser(){
   const [a,c]=await Promise.all([db.from("admins").select("user_id").eq("user_id",user.id).maybeSingle(),db.from("coin_collections").select("coin_id").eq("user_id",user.id)]);
   admin=!!a.data;if(c.data)collected=new Set(c.data.map(x=>x.coin_id));
  }
- account.textContent=user?(admin?"Admin":"Profilo"):"Accedi";updateCount();draw();
+ account.textContent=user?(admin?"Admin":"Profilo"):"Accedi";refresh.textContent=admin?"Admin":(user?"Profilo":"Accedi");refresh.title=admin?"Apri il pannello amministratore":"Apri il profilo giocatore";refresh.setAttribute("aria-label",refresh.title);updateCount();draw();
 }
 async function collect(c){
  if(!user){say("Accedi per raccogliere questa moneta.");$("authPanel").classList.remove("hidden");$("authMsg").textContent="Accedi o crea un account per salvare le monete.";return}
@@ -224,7 +224,7 @@ account.onclick=async()=>{if(!user){$("authPanel").classList.remove("hidden");re
 $("authClose").onclick=()=>$("authPanel").classList.add("hidden");$("profileClose").onclick=()=>$("profilePanel").classList.add("hidden");document.querySelectorAll("[data-profile-tab]").forEach(btn=>btn.onclick=()=>{document.querySelectorAll("[data-profile-tab]").forEach(x=>x.classList.toggle("active",x===btn));document.querySelectorAll(".profile-tab-content").forEach(x=>x.classList.toggle("hidden",x.id!=="profile-"+btn.dataset.profileTab))});$("adminClose").onclick=()=>$("adminPanel").classList.add("hidden");$("adminBack").onclick=()=>$("adminPanel").classList.add("hidden");$("victoryNext").onclick=()=>$("victoryPanel").classList.add("hidden");
 $("login").onclick=async()=>{let r=await db.auth.signInWithPassword({email:$("email").value.trim(),password:$("password").value});$("authMsg").textContent=r.error?.message||"Accesso effettuato";if(!r.error){$("authPanel").classList.add("hidden");await syncUser();if(admin)showAdmin()}}
 $("signup").onclick=async()=>{let r=await db.auth.signUp({email:$("email").value.trim(),password:$("password").value});$("authMsg").textContent=r.error?.message||"Registrazione avviata: controlla la posta per confermare l'email."}
-$("seedCoins").onclick=seed;$("resetCoins").onclick=resetAndSeed;$("addCoin").onclick=addCoin;locate.onclick=startGPS;recenter.onclick=()=>{if(position){map.setView([position.lat,position.lon],map.getZoom(),{animate:false})}};refresh.onclick=()=>{if(user)showProfile();else $("authPanel").classList.remove("hidden")};
+$("seedCoins").onclick=seed;$("resetCoins").onclick=resetAndSeed;$("addCoin").onclick=addCoin;locate.onclick=startGPS;recenter.onclick=()=>{if(position){map.setView([position.lat,position.lon],map.getZoom(),{animate:false})}};refresh.onclick=()=>{if(!user){$("authPanel").classList.remove("hidden");return}if(admin){showAdmin();return}showProfile()};
 bonus.onclick=()=>{if(!user){$("authPanel").classList.remove("hidden");return}bonusMode=!bonusMode;bonus.classList.toggle("active",bonusMode);say(bonusMode?"Bonus attivo: tocca una moneta entro 200 metri.":"Bonus disattivato")};
 db.auth.onAuthStateChange(()=>setTimeout(syncUser,0));
 (async()=>{startGPS();try{await syncUser();let n=await loadCoins();if(!position)say(n?`${n} monete caricate. In attesa della posizione GPS…`:"Database pronto: accedi come amministratore e crea le 10 monete.");}catch(e){say("Errore database: "+e.message)}})();
