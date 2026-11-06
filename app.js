@@ -1,5 +1,5 @@
-/* STREET COINS V30 */
-const APP_VERSION="V30";
+/* STREET COINS V31 */
+const APP_VERSION="V31";
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
@@ -94,7 +94,7 @@ function collectNearby(){
 }
 function startGPS(){
  try{const AC=window.AudioContext||window.webkitAudioContext;if(AC){audioCtx=audioCtx||new AC();audioCtx.resume()}}catch(e){}
- if(!navigator.geolocation){say("GPS non disponibile.");return}if(watch!==null)return;
+ if(!navigator.geolocation){say("GPS non disponibile in questo browser.");return}if(watch!==null){navigator.geolocation.clearWatch(watch);watch=null;}
  locate.disabled=true;locate.textContent="◎ Ricerca GPS…";say("Attendo la posizione GPS…");
  if(gpsWatchdog)clearTimeout(gpsWatchdog);
  gpsWatchdog=setTimeout(()=>{if(position===null||locate.disabled){if(watch!==null)navigator.geolocation.clearWatch(watch);watch=null;locate.disabled=false;locate.textContent="◎ Riprova GPS";say("Il telefono non sta fornendo la posizione. Attiva Posizione e autorizza Chrome ad accedere alla posizione precisa, poi riprova.");}},30000);
@@ -128,7 +128,7 @@ function startGPS(){
    window.circle.setRadius(accuracy);
   }
   if(!hasInitialGpsView){map.setView([position.lat,position.lon],17,{animate:false});hasInitialGpsView=true}recenter.disabled=false;locate.disabled=false;locate.textContent="◎ GPS attivo";
-  say(dist(position,TRENT0)<4100?(accuracy>70?"GPS impreciso: raccolta in pausa":(!user?"GPS attivo · accedi per raccogliere":"GPS attivo · monete fisse di Trento")):"Le 100 monete si trovano a Trento e dintorni");collectNearby();updateCount();
+  say(dist(position,TRENT0)<4100?(accuracy>70?"GPS impreciso: raccolta in pausa":(!user?"GPS attivo · accedi per raccogliere":"GPS attivo · monete fisse di Trento")):"Le 10 monete si trovano a Trento e dintorni");collectNearby();updateCount();
   }catch(err){console.error("Errore aggiornamento posizione",err);locate.disabled=false;locate.textContent="◎ GPS ricevuto";say("GPS ricevuto, ma errore nella mappa: "+(err.message||String(err)));}
  },e=>{if(gpsWatchdog){clearTimeout(gpsWatchdog);gpsWatchdog=null;}say(e.code===1?"Permesso GPS negato.":e.code===2?"Posizione GPS non disponibile.":"GPS lento: riprova all'aperto.");locate.disabled=false;locate.textContent="◎ Riprova GPS";if(watch!==null)navigator.geolocation.clearWatch(watch);watch=null},{enableHighAccuracy:true,maximumAge:0,timeout:30000})}catch(e){if(gpsWatchdog){clearTimeout(gpsWatchdog);gpsWatchdog=null;}watch=null;locate.disabled=false;locate.textContent="◎ Riprova GPS";say("Impossibile avviare il GPS: "+(e.message||"controlla i permessi del browser."))}
 }
@@ -163,13 +163,21 @@ async function resetAndSeed(){
   const ids=(existing.data||[]).map(x=>x.id);
   if(ids.length){
    const removedCollections=await db.from("coin_collections").delete().in("coin_id",ids);
-   if(removedCollections.error)throw Error("Non riesco a cancellare le raccolte precedenti: "+removedCollections.error.message);
+   if(removedCollections.error)throw Error("Cancellazione raccolte non riuscita: "+removedCollections.error.message);
    const removedCoins=await db.from("coins").delete().in("id",ids);
-   if(removedCoins.error)throw Error("Non riesco a cancellare le vecchie monete: "+removedCoins.error.message);
+   if(removedCoins.error)throw Error("Cancellazione monete non riuscita: "+removedCoins.error.message);
   }
+  const check=await db.from("coins").select("id");
+  if(check.error)throw check.error;
+  if((check.data||[]).length)throw Error("Il database non ha cancellato tutte le monete. Probabile blocco delle autorizzazioni (RLS). Non creo nuove monete per evitare duplicati.");
   coins=[];collected=new Set();draw();
-  $("adminMsg").textContent="Database pulito. Creo 10 nuove monete casuali sulle strade di Trento…";
+  $("adminMsg").textContent="Vecchie monete eliminate. Creo le 10 nuove…";
   await seed();
+  const verify=await db.from("coins").select("id");
+  if(verify.error)throw verify.error;
+  if((verify.data||[]).length!==10)throw Error("Verifica finale: nel database risultano "+(verify.data||[]).length+" monete, non 10.");
+  $("adminMsg").textContent="Reset completato: 10 nuove monete create.";
+  await loadCoins();
  }catch(e){$("adminMsg").textContent="Reset non completato: "+(e.message||String(e))}
  finally{btn.disabled=false}
 }
@@ -216,7 +224,7 @@ account.onclick=async()=>{if(!user){$("authPanel").classList.remove("hidden");re
 $("authClose").onclick=()=>$("authPanel").classList.add("hidden");$("profileClose").onclick=()=>$("profilePanel").classList.add("hidden");document.querySelectorAll("[data-profile-tab]").forEach(btn=>btn.onclick=()=>{document.querySelectorAll("[data-profile-tab]").forEach(x=>x.classList.toggle("active",x===btn));document.querySelectorAll(".profile-tab-content").forEach(x=>x.classList.toggle("hidden",x.id!=="profile-"+btn.dataset.profileTab))});$("adminClose").onclick=()=>$("adminPanel").classList.add("hidden");$("adminBack").onclick=()=>$("adminPanel").classList.add("hidden");$("victoryNext").onclick=()=>$("victoryPanel").classList.add("hidden");
 $("login").onclick=async()=>{let r=await db.auth.signInWithPassword({email:$("email").value.trim(),password:$("password").value});$("authMsg").textContent=r.error?.message||"Accesso effettuato";if(!r.error){$("authPanel").classList.add("hidden");await syncUser();if(admin)showAdmin()}}
 $("signup").onclick=async()=>{let r=await db.auth.signUp({email:$("email").value.trim(),password:$("password").value});$("authMsg").textContent=r.error?.message||"Registrazione avviata: controlla la posta per confermare l'email."}
-$("seedCoins").onclick=seed;$("resetCoins").onclick=resetAndSeed;$("addCoin").onclick=addCoin;locate.onclick=startGPS;recenter.onclick=()=>{if(position){map.setView([position.lat,position.lon],map.getZoom(),{animate:false})}};refresh.onclick=()=>account.onclick();
+$("seedCoins").onclick=seed;$("resetCoins").onclick=resetAndSeed;$("addCoin").onclick=addCoin;locate.onclick=startGPS;recenter.onclick=()=>{if(position){map.setView([position.lat,position.lon],map.getZoom(),{animate:false})}};refresh.onclick=()=>{if(user)showProfile();else $("authPanel").classList.remove("hidden")};
 bonus.onclick=()=>{if(!user){$("authPanel").classList.remove("hidden");return}bonusMode=!bonusMode;bonus.classList.toggle("active",bonusMode);say(bonusMode?"Bonus attivo: tocca una moneta entro 200 metri.":"Bonus disattivato")};
 db.auth.onAuthStateChange(()=>setTimeout(syncUser,0));
-(async()=>{startGPS();try{await syncUser();let n=await loadCoins();if(!position)say(n?`${n} monete caricate. In attesa della posizione GPS…`:"Database pronto: accedi come amministratore e crea le 100 monete.");}catch(e){say("Errore database: "+e.message)}})();
+(async()=>{startGPS();try{await syncUser();let n=await loadCoins();if(!position)say(n?`${n} monete caricate. In attesa della posizione GPS…`:"Database pronto: accedi come amministratore e crea le 10 monete.");}catch(e){say("Errore database: "+e.message)}})();
