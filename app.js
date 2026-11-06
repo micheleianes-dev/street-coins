@@ -1,5 +1,5 @@
-/* STREET COINS V35 */
-const APP_VERSION="V35";
+/* STREET COINS V36 */
+const APP_VERSION="V36";
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
@@ -154,10 +154,11 @@ async function seed(){
 }
 
 async function addCoin(){
- const code=$("newCoinCode").value.trim(),name=$("newCoinName").value.trim(),description=$("newCoinDescription").value.trim(),latitude=Number($("newCoinLat").value),longitude=Number($("newCoinLon").value),color=$("newCoinColor").value;
+ const code=$("newCoinCode").value.trim(),name=$("newCoinName").value.trim(),description=$("newCoinDescription").value.trim(),category=$("newCoinCategory").value.trim()||"Generale",latitude=Number($("newCoinLat").value),longitude=Number($("newCoinLon").value),color=$("newCoinColor").value;
  if(!code||!name||!Number.isFinite(latitude)||!Number.isFinite(longitude)||Math.abs(latitude)>90||Math.abs(longitude)>180){$("adminMsg").textContent="Inserisci codice, nome e coordinate valide.";return}
- const result=await db.from("coins").insert({code,name,description,latitude,longitude,color});
+ const result=await db.from("coins").insert({code,name,description,category,latitude,longitude,color});
  if(result.error){$("adminMsg").textContent="Errore: "+result.error.message;return}
+ const same=await db.from("coins").update({color}).eq("category",category);if(same.error){$("adminMsg").textContent="Moneta creata, ma aggiornamento colore categoria non riuscito: "+same.error.message;return}
  await loadCoins();$("adminMsg").textContent="Moneta aggiunta e visibile a tutti.";showAdmin();
 }
 async function showProfile(){
@@ -166,9 +167,22 @@ async function showProfile(){
  $("profileName").textContent=name;$("profileEmail").textContent=user.email||"";$("profileAvatar").replaceChildren();
  if(avatarUrl){const img=document.createElement("img");img.src=avatarUrl;img.alt="Avatar";$("profileAvatar").appendChild(img)}else{$("profileAvatar").textContent="★"}
  $("profileStats").textContent=collected.size+" / "+coins.length+" monete raccolte";
- const list=$("profileCollection");list.replaceChildren();const owned=coins.filter(c=>collected.has(c.id));
- if(!owned.length){const p=document.createElement("p");p.textContent="Non hai ancora raccolto monete. Esplora Trento per iniziare!";list.appendChild(p)}
- owned.forEach(c=>{const row=document.createElement("div");row.className="profile-coin";const title=document.createElement("b");title.textContent=c.name||c.code;const desc=document.createElement("small");desc.textContent=c.description||"Moneta raccolta";const stamp=document.createElement("small");stamp.className="collection-timestamp";const collectedAt=collectionDates.get(c.id);stamp.textContent=collectedAt?new Date(collectedAt).toLocaleString("it-IT",{dateStyle:"short",timeStyle:"short"}):"Data di raccolta non disponibile";row.append(title,desc,stamp);list.appendChild(row)});
+ const list=$("profileCollection");list.replaceChildren();
+ const groups=new Map();coins.forEach(c=>{const category=(c.category||"Generale").trim()||"Generale";if(!groups.has(category))groups.set(category,[]);groups.get(category).push(c)});
+ if(!groups.size){const p=document.createElement("p");p.className="profile-empty";p.textContent="L'album è ancora vuoto.";list.appendChild(p)}
+ groups.forEach((items,category)=>{const section=document.createElement("section");section.className="album-category";
+  const head=document.createElement("div");head.className="album-category-head";const title=document.createElement("h4");title.textContent=category;title.style.borderLeftColor=items[0].color||"#ff6eae";const count=document.createElement("b");const got=items.filter(c=>collected.has(c.id)).length;count.textContent=got+" / "+items.length;head.append(title,count);section.appendChild(head);
+  const grid=document.createElement("div");grid.className="album-grid";
+  items.forEach(c=>{const owned=collected.has(c.id),slot=document.createElement("div");slot.className="album-slot "+(owned?"is-collected":"is-missing");slot.style.setProperty("--category-color",c.color||"#ff6eae");
+   const art=document.createElement("div");art.className="album-art";
+   if(owned&&c.image_path){const img=document.createElement("img");img.src=db.storage.from("coin-images").getPublicUrl(c.image_path).data.publicUrl;img.alt=c.name||c.code;art.appendChild(img)}
+   else{const mark=document.createElement("span");mark.textContent=owned?"★":"?";art.appendChild(mark)}
+   const label=document.createElement("b");label.textContent=owned?(c.name||c.code):"Da trovare";
+   slot.append(art,label);
+   if(owned){const stamp=document.createElement("small");const collectedAt=collectionDates.get(c.id);stamp.textContent=collectedAt?new Date(collectedAt).toLocaleString("it-IT",{dateStyle:"short",timeStyle:"short"}):"Raccolta";slot.appendChild(stamp)}
+   grid.appendChild(slot);
+  });section.appendChild(grid);list.appendChild(section);
+ });
  const medals=[{n:1,t:"Prima scoperta",d:"Raccogli la tua prima moneta"},{n:5,t:"Collezionista",d:"Raccogli 5 monete"},{n:10,t:"Tesoro di Trento",d:"Completa le 10 monete iniziali"}];const box=$("profileMedals");box.replaceChildren();
  medals.forEach(m=>{const row=document.createElement("div");row.className="medal "+(collected.size>=m.n?"unlocked":"locked");const title=document.createElement("b");title.textContent=(collected.size>=m.n?"🏅 ":"🔒 ")+m.t;const desc=document.createElement("small");desc.textContent=m.d;row.append(title,desc);box.appendChild(row)});
  $("profilePanel").classList.remove("hidden");
@@ -195,11 +209,11 @@ async function showAdmin(){
  data.forEach(c=>{
   let d=document.createElement("div");d.className="coin-admin-row";
   const preview=c.image_path?db.storage.from("coin-images").getPublicUrl(c.image_path).data.publicUrl:"";
-  d.innerHTML=`<b>${esc(c.code)}</b><button class="danger" data-delete>Rimuovi moneta</button>${preview?`<img class="coin-admin-preview" src="${esc(preview)}" alt="Immagine attuale">`:'<p class="no-image">Nessuna immagine caricata</p>'}<label>Nome <input type="text" maxlength="80" value="${esc(c.name||"")}" data-name placeholder="Nome della moneta"></label><label>Descrizione <textarea maxlength="500" data-description placeholder="Descrizione della moneta">${esc(c.description||"")}</textarea></label><label>Lat <input type="number" step=".000001" value="${c.latitude}" data-lat></label><label>Lon <input type="number" step=".000001" value="${c.longitude}" data-lon></label><label>Colore <input type="color" value="${esc(c.color||"#ff6eae")}" data-color></label><label>Immagine <input type="file" accept="image/png,image/jpeg,image/webp" data-file></label><button class="primary" data-save>Salva</button>`;
+  d.innerHTML=`<b>${esc(c.code)}</b><button class="danger" data-delete>Rimuovi moneta</button>${preview?`<img class="coin-admin-preview" src="${esc(preview)}" alt="Immagine attuale">`:'<p class="no-image">Nessuna immagine caricata</p>'}<label>Nome <input type="text" maxlength="80" value="${esc(c.name||"")}" data-name placeholder="Nome della moneta"></label><label>Categoria <input type="text" maxlength="50" list="coinCategoryOptions" value="${esc(c.category||"Generale")}" data-category placeholder="Categoria"></label><label>Descrizione <textarea maxlength="500" data-description placeholder="Descrizione della moneta">${esc(c.description||"")}</textarea></label><label>Lat <input type="number" step=".000001" value="${c.latitude}" data-lat></label><label>Lon <input type="number" step=".000001" value="${c.longitude}" data-lon></label><label>Colore <input type="color" value="${esc(c.color||"#ff6eae")}" data-color></label><label>Immagine <input type="file" accept="image/png,image/jpeg,image/webp" data-file></label><button class="primary" data-save>Salva</button>`;
   $("coinList").appendChild(d);
   d.querySelector("[data-delete]").onclick=async()=>{if(!confirm("Rimuovere questa moneta dal gioco?"))return;const del=await db.from("coins").delete().eq("id",c.id);if(del.error){$("adminMsg").textContent=del.error.message;return}await loadCoins();showAdmin()};
   d.querySelector("[data-save]").onclick=async()=>{
-   let patch={name:d.querySelector("[data-name]").value.trim(),description:d.querySelector("[data-description]").value.trim(),latitude:Number(d.querySelector("[data-lat]").value),longitude:Number(d.querySelector("[data-lon]").value),color:d.querySelector("[data-color]").value};
+   let category=d.querySelector("[data-category]").value.trim()||"Generale",color=d.querySelector("[data-color]").value;let patch={name:d.querySelector("[data-name]").value.trim(),category,description:d.querySelector("[data-description]").value.trim(),latitude:Number(d.querySelector("[data-lat]").value),longitude:Number(d.querySelector("[data-lon]").value),color};
    let f=d.querySelector("[data-file]").files[0];
    if(f){if(f.size>1024*1024){$("adminMsg").textContent="Immagine massimo 1 MB";return}let path=`${c.code}-${Date.now()}-${f.name.replace(/[^a-zA-Z0-9._-]/g,"")}`;let up=await db.storage.from("coin-images").upload(path,f);if(up.error){$("adminMsg").textContent=up.error.message;return}patch.image_path=path}
    let u=await db.from("coins").update(patch).eq("id",c.id);if(u.error){$("adminMsg").textContent=u.error.message;return}
