@@ -201,7 +201,8 @@ function openStreetCardDetail(c){
  else{image.removeAttribute("src");image.classList.add("hidden");placeholder.classList.remove("hidden")}
  modal.classList.remove("hidden");
 }
-\nasync function showProfile(){
+
+async function showProfile(){
  if(!user){$("authPanel").classList.remove("hidden");return}
  const meta=user.user_metadata||{},name=meta.display_name||meta.full_name||meta.name||meta.nickname||(user.email||"").split("@")[0]||"Giocatore";
  $("profileName").textContent=name;$("profileEmail").textContent=user.email||"";$("profileAvatar").replaceChildren();
