@@ -154,6 +154,13 @@ async function seed(){
  }catch(e){$("adminMsg").textContent=e.message||"Errore nella creazione delle monete"}
  finally{$("seedCoins").disabled=false}
 }
+async function addCoin(){
+ const code=$("newCoinCode").value.trim(),name=$("newCoinName").value.trim(),description=$("newCoinDescription").value.trim(),latitude=Number($("newCoinLat").value),longitude=Number($("newCoinLon").value),color=$("newCoinColor").value;
+ if(!code||!name||!Number.isFinite(latitude)||!Number.isFinite(longitude)||Math.abs(latitude)>90||Math.abs(longitude)>180){$("adminMsg").textContent="Inserisci codice, nome e coordinate valide.";return}
+ const result=await db.from("coins").insert({code,name,description,latitude,longitude,color});
+ if(result.error){$("adminMsg").textContent="Errore: "+result.error.message;return}
+ await loadCoins();$("adminMsg").textContent="Moneta aggiunta e visibile a tutti.";showAdmin();
+}
 async function showAdmin(){
  $("adminPanel").classList.remove("hidden");$("adminMsg").textContent=user.email;
  let {data,error}=await db.from("coins").select("*").order("code");if(error){$("coinList").textContent=error.message;return}
@@ -177,7 +184,7 @@ account.onclick=async()=>{if(!user){$("authPanel").classList.remove("hidden");re
 $("authClose").onclick=()=>$("authPanel").classList.add("hidden");$("adminClose").onclick=()=>$("adminPanel").classList.add("hidden");$("adminBack").onclick=()=>$("adminPanel").classList.add("hidden");$("victoryNext").onclick=()=>$("victoryPanel").classList.add("hidden");
 $("login").onclick=async()=>{let r=await db.auth.signInWithPassword({email:$("email").value.trim(),password:$("password").value});$("authMsg").textContent=r.error?.message||"Accesso effettuato";if(!r.error){$("authPanel").classList.add("hidden");await syncUser();if(admin)showAdmin()}}
 $("signup").onclick=async()=>{let r=await db.auth.signUp({email:$("email").value.trim(),password:$("password").value});$("authMsg").textContent=r.error?.message||"Registrazione avviata: controlla la posta per confermare l'email."}
-$("seedCoins").onclick=seed;locate.onclick=startGPS;recenter.onclick=()=>{if(position){map.setView([position.lat,position.lon],map.getZoom(),{animate:false})}};refresh.onclick=()=>loadCoins().then(n=>say(`${n} monete caricate`)).catch(e=>say(e.message));
+$("seedCoins").onclick=seed;$("addCoin").onclick=addCoin;locate.onclick=startGPS;recenter.onclick=()=>{if(position){map.setView([position.lat,position.lon],map.getZoom(),{animate:false})}};refresh.onclick=()=>loadCoins().then(n=>say(`${n} monete caricate`)).catch(e=>say(e.message));
 bonus.onclick=()=>{if(!user){$("authPanel").classList.remove("hidden");return}bonusMode=!bonusMode;bonus.classList.toggle("active",bonusMode);say(bonusMode?"Bonus attivo: tocca una moneta entro 200 metri.":"Bonus disattivato")};
 db.auth.onAuthStateChange(()=>setTimeout(syncUser,0));
 (async()=>{startGPS();try{await syncUser();let n=await loadCoins();if(!position)say(n?`${n} monete caricate. In attesa della posizione GPS…`:"Database pronto: accedi come amministratore e crea le 100 monete.");}catch(e){say("Errore database: "+e.message)}})();
