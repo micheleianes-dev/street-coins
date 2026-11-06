@@ -1,5 +1,5 @@
-/* STREET COINS V36 */
-const APP_VERSION="V36";
+/* STREET COINS V37 */
+const APP_VERSION="V37";
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
@@ -10,7 +10,7 @@ L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=
 L.control.zoom({position:"bottomright"}).addTo(map);
 const layer=L.layerGroup().addTo(map),$=id=>document.getElementById(id);
 map.on("click",e=>{const lat=e.latlng.lat,lon=e.latlng.lng;L.popup().setLatLng(e.latlng).setContent(`<div class="coord-popup"><b>Punto selezionato</b><br>Latitudine: ${lat.toFixed(6)}<br>Longitudine: ${lon.toFixed(6)}</div>`).openOn(map)});
-let user=null,admin=false,position=null,accuracy=999,watch=null,coins=[],collected=new Set(),collectionDates=new Map(),pendingCollections=new Set(),avatarUrl="",bonusMode=false,audioCtx=null,lastGpsFix=null,headingAnchor=null,gpsWatchdog=null,playerMoving=false,movingSince=0,movementActive=false,hasInitialGpsView=false,stableHeading=null,lastHeadingUpdate=0;
+let categories=[],user=null,admin=false,position=null,accuracy=999,watch=null,coins=[],collected=new Set(),collectionDates=new Map(),pendingCollections=new Set(),avatarUrl="",bonusMode=false,audioCtx=null,lastGpsFix=null,headingAnchor=null,gpsWatchdog=null,playerMoving=false,movingSince=0,movementActive=false,hasInitialGpsView=false,stableHeading=null,lastHeadingUpdate=0;
 $("appVersion").textContent=APP_VERSION;
 const status=$("status"),locate=$("locateBtn"),account=$("accountBtn"),bonus=$("bonusBtn"),refresh=$("refreshBtn"),recenter=$("recenterBtn");
 function say(s){status.textContent=s}
@@ -40,7 +40,16 @@ function showVictory(c){
 function dist(a,b){const r=Math.PI/180,R=6371000,d1=(b.lat-a.lat)*r,d2=(b.lon-a.lon)*r,x=Math.sin(d1/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(d2/2)**2;return 2*R*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))}
 function bearingBetween(a,b){const r=Math.PI/180,lat1=a.lat*r,lat2=b.lat*r,dLon=(b.lon-a.lon)*r,y=Math.sin(dLon)*Math.cos(lat2),x=Math.cos(lat1)*Math.sin(lat2)-Math.sin(lat1)*Math.cos(lat2)*Math.cos(dLon);return (Math.atan2(y,x)/r+360)%360}
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-function updateCount(){$("coinCount").textContent=collected.size;$("bonusCount").textContent=1+Math.floor(collected.size/10);bonus.disabled=!user||!position}
+function updateCount(){
+ $("coinCount").textContent=collected.size;
+ $("bonusCount").textContent=1+Math.floor(collected.size/10);bonus.disabled=!user||!position;
+ const box=$("categoryCounterRows");if(!box)return;box.replaceChildren();
+ categories.forEach(cat=>{const items=coins.filter(c=>(c.category||"Generale")===cat.name),got=items.filter(c=>collected.has(c.id)).length;if(!items.length)return;
+  const row=document.createElement("span");row.className="counter-category";const dot=document.createElement("i");dot.style.background=cat.color||"#ff6eae";const label=document.createElement("b");label.textContent=got+"/"+items.length;row.append(dot,label);box.appendChild(row);
+ });
+}
+function categoryColor(name,fallback){return categories.find(x=>x.name===name)?.color||fallback||"#ff6eae"}
+function categoryImage(path){return path?db.storage.from("coin-images").getPublicUrl(path).data.publicUrl:""}
 function playerIcon(){
  const inner=avatarUrl?'<img src="'+esc(avatarUrl)+'" alt="">':'<span>★</span>';
  const walking=movementActive?' is-walking':'';
@@ -54,9 +63,10 @@ function updateDirectionArrow(stamp,heading){
  if(heading!==null&&Number.isFinite(heading))stableHeading=heading;
  movementActive=stamp-movingSince>=2800&&stableHeading!==null&&Number.isFinite(stableHeading);
 }
-function icon(c){let inner=c.image_path?`<img src="${db.storage.from("coin-images").getPublicUrl(c.image_path).data.publicUrl}">`:"<span>★</span>";return L.divIcon({className:"",html:`<div class="coin-marker ${collected.has(c.id)?"collected":""}" style="background:${esc(c.color||"#ff6eae")}">${inner}</div>`,iconSize:[42,42],iconAnchor:[21,21]})}
+function icon(c){let inner=c.image_path?'<img src="'+esc(categoryImage(c.image_path))+'">':"<span>★</span>";const color=categoryColor(c.category,c.color);return L.divIcon({className:"",html:'<div class="coin-marker '+(collected.has(c.id)?"collected":"")+'" style="--coin-color:'+esc(color)+';background:'+esc(color)+'">'+inner+'</div>',iconSize:[42,42],iconAnchor:[21,21]})}
 function draw(){layer.clearLayers();coins.forEach(c=>{c.marker=L.marker([c.latitude,c.longitude],{icon:icon(c)}).addTo(layer);c.marker.bindPopup(`<div class="coin-popup"><b>${esc(c.name||c.code)}</b><p>${esc(c.description||"Nessuna descrizione disponibile.")}</p>${collected.has(c.id)?'<small>Già raccolta da te</small>':""}</div>`);c.marker.on("click",()=>{const el=c.marker.getElement()?.querySelector(".coin-marker");if(el){el.classList.remove("coin-tap");void el.offsetWidth;el.classList.add("coin-tap")}if(bonusMode||(position&&dist(position,{lat:c.latitude,lon:c.longitude})<=collectionRadius()))collect(c)})})}
-async function loadCoins(){let {data,error}=await db.from("coins").select("*").order("code");if(error)throw error;coins=data||[];draw();return coins.length}
+async function loadCategories(){const {data,error}=await db.from("categories").select("*").order("name");if(error)throw error;categories=data||[];updateCount();return categories}
+async function loadCoins(){await loadCategories();let {data,error}=await db.from("coins").select("*").order("code");if(error)throw error;coins=data||[];draw();updateCount();return coins.length}
 async function syncUser(){
  let {data:{session}}=await db.auth.getSession();user=session?.user||null;admin=false;collected=new Set();collectionDates=new Map();avatarUrl="";
  if(user){
@@ -153,13 +163,21 @@ async function seed(){
  finally{$("seedCoins").disabled=false}
 }
 
+async function nextCoinCode(){
+ const {data,error}=await db.from("coins").select("code");if(error)throw error;
+ let max=0;(data||[]).forEach(c=>{const m=String(c.code||"").match(/^TR-(\\d+)$/i);if(m)max=Math.max(max,Number(m[1]))});
+ return "TR-"+String(max+1).padStart(3,"0");
+}
 async function addCoin(){
- const code=$("newCoinCode").value.trim(),name=$("newCoinName").value.trim(),description=$("newCoinDescription").value.trim(),category=$("newCoinCategory").value.trim()||"Generale",latitude=Number($("newCoinLat").value),longitude=Number($("newCoinLon").value),color=$("newCoinColor").value;
- if(!code||!name||!Number.isFinite(latitude)||!Number.isFinite(longitude)||Math.abs(latitude)>90||Math.abs(longitude)>180){$("adminMsg").textContent="Inserisci codice, nome e coordinate valide.";return}
- const result=await db.from("coins").insert({code,name,description,category,latitude,longitude,color});
- if(result.error){$("adminMsg").textContent="Errore: "+result.error.message;return}
- const same=await db.from("coins").update({color}).eq("category",category);if(same.error){$("adminMsg").textContent="Moneta creata, ma aggiornamento colore categoria non riuscito: "+same.error.message;return}
- await loadCoins();$("adminMsg").textContent="Moneta aggiunta e visibile a tutti.";showAdmin();
+ const name=$("newCoinName").value.trim(),description=$("newCoinDescription").value.trim(),category=$("newCoinCategory").value,latitude=Number($("newCoinLat").value),longitude=Number($("newCoinLon").value);
+ if(!name||!category||!Number.isFinite(latitude)||!Number.isFinite(longitude)||Math.abs(latitude)>90||Math.abs(longitude)>180){$("adminMsg").textContent="Inserisci nome, categoria e coordinate valide.";return}
+ try{
+  const code=await nextCoinCode(),cat=categories.find(x=>x.name===category);if(!cat)throw Error("Seleziona una categoria esistente.");
+  const result=await db.from("coins").insert({code,name,description,category,latitude,longitude,color:cat.color});
+  if(result.error)throw result.error;
+  $("newCoinName").value="";$("newCoinDescription").value="";$("newCoinLat").value="";$("newCoinLon").value="";
+  await loadCoins();$("adminMsg").textContent="Moneta "+code+" aggiunta.";showAdmin();
+ }catch(e){$("adminMsg").textContent="Errore: "+e.message}
 }
 async function showProfile(){
  if(!user){$("authPanel").classList.remove("hidden");return}
@@ -202,27 +220,64 @@ async function uploadAvatar(){
  }catch(e){$("profileInfoMsg").textContent="Errore caricamento: "+(e.message||"riprova")}
  finally{$("avatarUploadBtn").disabled=false}
 }
+async function uploadCategoryImage(file,slug){
+ if(!file)return null;if(!["image/png","image/jpeg","image/webp"].includes(file.type))throw Error("Usa un'immagine PNG, JPG o WEBP.");
+ if(file.size>2*1024*1024)throw Error("L'immagine deve essere inferiore a 2 MB.");
+ const ext=file.type==="image/png"?"png":file.type==="image/webp"?"webp":"jpg",path="categories/"+slug+"-"+Date.now()+"."+ext;
+ const up=await db.storage.from("coin-images").upload(path,file,{upsert:false,contentType:file.type});if(up.error)throw up.error;return path;
+}
+function categorySelect(value){return '<select data-category>'+categories.map(c=>'<option value="'+esc(c.name)+'" '+(c.name===value?"selected":"")+'>'+esc(c.name)+'</option>').join("")+'</select>'}
+async function saveNewCategory(){
+ const name=$("newCategoryName").value.trim(),description=$("newCategoryDescription").value.trim(),color=$("newCategoryColor").value,file=$("newCategoryImage").files[0];
+ if(!name){$("adminMsg").textContent="Inserisci il nome della categoria.";return}
+ try{let image_path=await uploadCategoryImage(file,name.toLowerCase().replace(/[^a-z0-9]+/g,"-"));const {error}=await db.from("categories").insert({name,description,color,image_path});if(error)throw error;
+  $("newCategoryName").value="";$("newCategoryDescription").value="";$("newCategoryImage").value="";await loadCategories();showAdmin();$("adminMsg").textContent="Categoria creata.";
+ }catch(e){$("adminMsg").textContent="Errore categoria: "+e.message}
+}
+async function showCategoryOverview(){
+ await loadCategories();const panel=$("categoryPanel"),list=$("categoryOverview");list.replaceChildren();
+ categories.forEach(cat=>{const items=coins.filter(c=>(c.category||"Generale")===cat.name),got=items.filter(c=>collected.has(c.id)).length,card=document.createElement("article");card.className="category-overview-card";card.style.setProperty("--category-color",cat.color||"#ff6eae");
+  const img=document.createElement("img");img.src=categoryImage(cat.image_path)||"";img.alt=cat.name;if(!cat.image_path)img.className="no-category-image";
+  const body=document.createElement("div"),title=document.createElement("h3"),desc=document.createElement("p"),stats=document.createElement("b");title.textContent=cat.name;desc.textContent=cat.description||"Nessuna descrizione.";stats.textContent=got+" / "+items.length+" coins raccolte";body.append(title,desc,stats);card.append(img,body);list.appendChild(card);
+ });panel.classList.remove("hidden");
+}
 async function showAdmin(){
  $("adminPanel").classList.remove("hidden");$("adminMsg").textContent=user.email;
  let {data,error}=await db.from("coins").select("*").order("code");if(error){$("coinList").textContent=error.message;return}
- $("coinList").innerHTML="";
+ await loadCategories();
+ const catSelect=$("newCoinCategory");catSelect.replaceChildren();categories.forEach(c=>{const o=document.createElement("option");o.value=c.name;o.textContent=c.name;catSelect.appendChild(o)});
+ $("coinList").innerHTML="";$("categoryAdminList").replaceChildren();
+ categories.forEach(cat=>{
+  const d=document.createElement("div");d.className="category-admin-row";
+  d.innerHTML='<label>Nome<input data-name maxlength="60" value="'+esc(cat.name)+'"></label><label>Descrizione<textarea data-description maxlength="500">'+esc(cat.description||"")+'</textarea></label><label>Colore<input data-color type="color" value="'+esc(cat.color||"#ff6eae")+'"></label><label>Immagine generale<input data-file type="file" accept="image/png,image/jpeg,image/webp"></label>'+(cat.image_path?'<img class="category-admin-preview" src="'+esc(categoryImage(cat.image_path))+'" alt="Immagine categoria">':'')+'<button class="primary" data-save>Salva categoria</button><button class="danger" data-delete>Elimina categoria</button>';
+  $("categoryAdminList").appendChild(d);
+  d.querySelector("[data-save]").onclick=async()=>{try{
+   const newName=d.querySelector("[data-name]").value.trim();if(!newName)throw Error("Il nome è obbligatorio.");
+   const patch={name:newName,description:d.querySelector("[data-description]").value.trim(),color:d.querySelector("[data-color]").value};
+   const f=d.querySelector("[data-file]").files[0];if(f)patch.image_path=await uploadCategoryImage(f,newName.toLowerCase().replace(/[^a-z0-9]+/g,"-"));
+   if(newName!==cat.name){const moved=await db.from("coins").update({category:newName,color:patch.color}).eq("category",cat.name);if(moved.error)throw moved.error}
+   const saved=await db.from("categories").update(patch).eq("id",cat.id);if(saved.error)throw saved.error;
+   await loadCoins();showAdmin();$("adminMsg").textContent="Categoria aggiornata.";
+  }catch(e){$("adminMsg").textContent=e.message}};
+  d.querySelector("[data-delete]").onclick=async()=>{const used=coins.some(c=>(c.category||"Generale")===cat.name);if(used){$("adminMsg").textContent="Prima assegna le monete a un'altra categoria.";return}if(cat.name==="Generale"){ $("adminMsg").textContent="La categoria Generale non può essere eliminata.";return}if(!confirm("Eliminare la categoria "+cat.name+"?"))return;const del=await db.from("categories").delete().eq("id",cat.id);if(del.error){$("adminMsg").textContent=del.error.message;return}await loadCategories();showAdmin()};
+ });
  data.forEach(c=>{
   let d=document.createElement("div");d.className="coin-admin-row";
-  const preview=c.image_path?db.storage.from("coin-images").getPublicUrl(c.image_path).data.publicUrl:"";
-  d.innerHTML=`<b>${esc(c.code)}</b><button class="danger" data-delete>Rimuovi moneta</button>${preview?`<img class="coin-admin-preview" src="${esc(preview)}" alt="Immagine attuale">`:'<p class="no-image">Nessuna immagine caricata</p>'}<label>Nome <input type="text" maxlength="80" value="${esc(c.name||"")}" data-name placeholder="Nome della moneta"></label><label>Categoria <input type="text" maxlength="50" list="coinCategoryOptions" value="${esc(c.category||"Generale")}" data-category placeholder="Categoria"></label><label>Descrizione <textarea maxlength="500" data-description placeholder="Descrizione della moneta">${esc(c.description||"")}</textarea></label><label>Lat <input type="number" step=".000001" value="${c.latitude}" data-lat></label><label>Lon <input type="number" step=".000001" value="${c.longitude}" data-lon></label><label>Colore <input type="color" value="${esc(c.color||"#ff6eae")}" data-color></label><label>Immagine <input type="file" accept="image/png,image/jpeg,image/webp" data-file></label><button class="primary" data-save>Salva</button>`;
+  const preview=c.image_path?categoryImage(c.image_path):"";
+  d.innerHTML='<b>'+esc(c.code)+'</b>'+(preview?'<img class="coin-admin-preview" src="'+esc(preview)+'" alt="Immagine attuale">':'<p class="no-image">Nessuna immagine caricata</p>')+'<label>Nome <input type="text" maxlength="80" value="'+esc(c.name||"")+'" data-name></label><label>Categoria '+categorySelect(c.category||"Generale")+'</label><label>Descrizione <textarea maxlength="500" data-description>'+esc(c.description||"")+'</textarea></label><label>Lat <input type="number" step=".000001" value="'+c.latitude+'" data-lat></label><label>Lon <input type="number" step=".000001" value="'+c.longitude+'" data-lon></label><label>Immagine <input type="file" accept="image/png,image/jpeg,image/webp" data-file></label><button class="primary" data-save>Salva</button><button class="danger" data-delete>Rimuovi moneta</button>';
   $("coinList").appendChild(d);
   d.querySelector("[data-delete]").onclick=async()=>{if(!confirm("Rimuovere questa moneta dal gioco?"))return;const del=await db.from("coins").delete().eq("id",c.id);if(del.error){$("adminMsg").textContent=del.error.message;return}await loadCoins();showAdmin()};
   d.querySelector("[data-save]").onclick=async()=>{
-   let category=d.querySelector("[data-category]").value.trim()||"Generale",color=d.querySelector("[data-color]").value;let patch={name:d.querySelector("[data-name]").value.trim(),category,description:d.querySelector("[data-description]").value.trim(),latitude:Number(d.querySelector("[data-lat]").value),longitude:Number(d.querySelector("[data-lon]").value),color};
+   const patch={name:d.querySelector("[data-name]").value.trim(),category:d.querySelector("[data-category]").value,description:d.querySelector("[data-description]").value.trim(),latitude:Number(d.querySelector("[data-lat]").value),longitude:Number(d.querySelector("[data-lon]").value)};
    let f=d.querySelector("[data-file]").files[0];
-   if(f){if(f.size>1024*1024){$("adminMsg").textContent="Immagine massimo 1 MB";return}let path=`${c.code}-${Date.now()}-${f.name.replace(/[^a-zA-Z0-9._-]/g,"")}`;let up=await db.storage.from("coin-images").upload(path,f);if(up.error){$("adminMsg").textContent=up.error.message;return}patch.image_path=path}
+   if(f){try{patch.image_path=await uploadCategoryImage(f,c.code)}catch(e){$("adminMsg").textContent=e.message;return}}
    let u=await db.from("coins").update(patch).eq("id",c.id);if(u.error){$("adminMsg").textContent=u.error.message;return}
-   await loadCoins();$("adminMsg").textContent=`${c.code} aggiornata`;showAdmin()
+   await loadCoins();$("adminMsg").textContent=c.code+" aggiornata";showAdmin()
   }
  })
 }
 account.onclick=async()=>{if(!user){$("authPanel").classList.remove("hidden");return}if(admin){showAdmin();return}showProfile()}
-$("authClose").onclick=()=>$("authPanel").classList.add("hidden");$("profileClose").onclick=()=>$("profilePanel").classList.add("hidden");document.querySelectorAll("[data-profile-tab]").forEach(btn=>btn.onclick=()=>{document.querySelectorAll("[data-profile-tab]").forEach(x=>x.classList.toggle("active",x===btn));document.querySelectorAll(".profile-tab-content").forEach(x=>x.classList.toggle("hidden",x.id!=="profile-"+btn.dataset.profileTab))});$("adminClose").onclick=()=>$("adminPanel").classList.add("hidden");$("adminBack").onclick=()=>$("adminPanel").classList.add("hidden");$("victoryNext").onclick=()=>$("victoryPanel").classList.add("hidden");
+$("authClose").onclick=()=>$("authPanel").classList.add("hidden");$("profileClose").onclick=()=>$("profilePanel").classList.add("hidden");document.querySelectorAll("[data-profile-tab]").forEach(btn=>btn.onclick=()=>{document.querySelectorAll("[data-profile-tab]").forEach(x=>x.classList.toggle("active",x===btn));document.querySelectorAll(".profile-tab-content").forEach(x=>x.classList.toggle("hidden",x.id!=="profile-"+btn.dataset.profileTab))});$("adminClose").onclick=()=>$("adminPanel").classList.add("hidden");$("categoryCounter").onclick=showCategoryOverview;$("categoryClose").onclick=()=>$("categoryPanel").classList.add("hidden");$("addCategory").onclick=saveNewCategory;$("adminBack").onclick=()=>$("adminPanel").classList.add("hidden");$("victoryNext").onclick=()=>$("victoryPanel").classList.add("hidden");
 $("login").onclick=async()=>{let r=await db.auth.signInWithPassword({email:$("email").value.trim(),password:$("password").value});$("authMsg").textContent=r.error?.message||"Accesso effettuato";if(!r.error){$("authPanel").classList.add("hidden");await syncUser();if(admin)showAdmin()}}
 $("signup").onclick=async()=>{let r=await db.auth.signUp({email:$("email").value.trim(),password:$("password").value});$("authMsg").textContent=r.error?.message||"Registrazione avviata: controlla la posta per confermare l'email."}
 $("avatarUploadBtn").onclick=uploadAvatar;$("avatarFile").onchange=()=>{const f=$("avatarFile").files[0];if(f){const preview=$("avatarPreview");preview.src=URL.createObjectURL(f);preview.classList.remove("hidden");$("profileInfoMsg").textContent="Anteprima pronta: premi Salva avatar."}};$("seedCoins").onclick=seed;$("addCoin").onclick=addCoin;locate.onclick=startGPS;recenter.onclick=()=>{if(position){map.setView([position.lat,position.lon],map.getZoom(),{animate:false})}};refresh.onclick=()=>showProfile();$("adminShortcut").onclick=()=>{if(admin){showAdmin();return}if(!user){$("authPanel").classList.remove("hidden");$("authMsg").textContent="Accedi con un account amministratore per aprire questo pannello.";return}say("Accesso riservato agli amministratori.")};
