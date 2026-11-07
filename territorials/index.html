@@ -14,7 +14,7 @@
   <header class="topbar">
     <div class="brand-mark">T</div>
     <div class="brand-copy"><strong>TERRITORIALS</strong><small>IL MONDO È IL TUO CAMPO DI GIOCO</small></div>
-    <div class="gps-pill" id="gpsPill"><i></i><span>GPS inattivo</span></div>
+    <div class="gps-pill" id="gpsPill"><i></i><span>GPS non attivo</span></div>
   </header>
   <section class="territory-banner" id="territoryBanner">
     <span class="banner-symbol">⌖</span>
@@ -27,15 +27,16 @@
       <div><small>PUNTI GPS</small><strong id="pointValue">0</strong></div>
       <div><small>AREA STIMATA</small><strong id="areaValue">—</strong></div>
     </div>
-    <div class="actions">
-      <button id="startBtn" class="primary">◎ Inizia a tracciare</button>
+    <div class="actions gps-actions">
+      <button id="locateBtn" class="gps-button">◎ Attiva GPS</button>
+      <button id="startBtn" class="primary">Inizia a tracciare</button>
       <button id="cancelBtn" class="secondary" disabled>Annulla</button>
     </div>
     <p class="hint" id="hint">Attiva il GPS e inizia a camminare. La linea seguirà il tuo percorso.</p>
   </section>
-  <button id="recenterBtn" class="recenter" aria-label="Centra sulla mia posizione">⌖</button>
+  <button id="recenterBtn" class="recenter" aria-label="Centra sulla mia posizione" disabled>⌖</button>
   <div class="map-legend"><span><i class="line-key"></i> Il tuo percorso</span><span><i class="area-key"></i> Territorio conquistato</span></div>
-  <div class="app-version" aria-label="Versione applicazione">TERRITORIALS <span>v1.0.0</span></div>
+  <div class="app-version" aria-label="Versione applicazione">TERRITORIALS <span>v1.0.1</span></div>
   <div class="toast" id="toast" role="status"></div>
 </main>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
