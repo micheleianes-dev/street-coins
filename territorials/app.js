@@ -1,5 +1,5 @@
 /* TERRITORIALS — V1.2.0 account e territori persistenti */
-const TEST_MODE=new URLSearchParams(location.search).get("test")==="1";
+const TEST_MODE=true;
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
@@ -94,7 +94,9 @@ function applyMovementPoint(p){
  if(recording){
   if(track.length===0){track.push(p);trackLine.addLatLng(p)}
   else{const last=track[track.length-1],d=distance(last,p);if(d>=4){track.push(p);totalDistance+=d;trackLine.addLatLng(p)}}
-  updateStats();tryCloseLoop(p);
+  updateStats();
+if(TEST_MODE){$("testModePill").hidden=false;$("gpsPill").hidden=true;$("locateBtn").hidden=true;$("drawState").textContent="Modalità test pronta";$("hint").textContent="Trascina il segnalino verde sulla mappa per simulare una camminata. Attiva il tracciamento per disegnare un territorio.";const initial=map.getCenter();position={lat:initial.lat,lng:initial.lng};accuracy=5;updatePlayerMarker(initial);updateAccuracyCircle(initial);$("recenterBtn").disabled=false;updatePositionBanner();}
+tryCloseLoop(p);
  }
 }
 function onSimulatedPosition(p){
