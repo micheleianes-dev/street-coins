@@ -168,13 +168,13 @@ function showZoneDetails(z,first){
 }
 async function saveClosedZone(points,m2,walked){
  if(!currentUser){showAuth("Accedi o registrati per salvare la tua zona.");return null}
- const name=playerName||displayName(currentUser),resources={status:"pending",items:[]},row={owner_id:currentUser.id,owner_name:name,points:points.map(p=>({lat:p.lat,lng:p.lng})),area_m2:Math.round(m2),perimeter_m:Math.round(perimeter(points)),distance_m:Math.round(walked),resources};
+ const ownerId=currentUser.id,name=playerName||displayName(currentUser),resources={status:"pending",items:[]},row={owner_id:ownerId,owner_name:name,points:points.map(p=>({lat:p.lat,lng:p.lng})),area_m2:Math.round(m2),perimeter_m:Math.round(perimeter(points)),distance_m:Math.round(walked),resources};
  const {data,error}=await db.from("territorials_zones").insert(row).select("*").single();
  if(error)throw error;
  savedTerritories.push(data);updateTerritoryControls();
  // La conquista viene mostrata subito; l'analisi OSM prosegue in background.
  calculateTerritoryResources(points).then(async result=>{
-  const {error:updateError}=await db.from("territorials_zones").update({resources:result}).eq("id",data.id).eq("owner_id",currentUser.id);
+  const {error:updateError}=await db.from("territorials_zones").update({resources:result}).eq("id",data.id).eq("owner_id",ownerId);
   if(updateError)throw updateError;
   const local=savedTerritories.find(z=>z.id===data.id);if(local)local.resources=result;
   if(currentZoneDetailsId===data.id&&!$("zoneModal").classList.contains("hidden"))$("zoneResources").innerHTML="<h3>Risorse di questo territorio</h3>"+resourceMarkup(result);
@@ -246,6 +246,7 @@ async function tryCloseLoop(current){
  if(window.zoneSaving)return;window.zoneSaving=true;
  try{
   const first=savedTerritories.filter(z=>z.owner_id===currentUser.id).length===0;
+  $("drawState").textContent="Salvataggio del territorio…";$("hint").textContent="Perimetro chiuso: sto registrando la tua conquista.";
   const z=await saveClosedZone(polygonPoints,m2,totalDistance);
   if(!z) return;
   L.polygon([...polygonPoints,polygonPoints[0]],{color:"#159f7c",weight:3,fillColor:"#25d6a6",fillOpacity:.28}).addTo(drawnLayer).bindTooltip("Zona di "+escHtml(z.owner_name));
