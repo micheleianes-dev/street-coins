@@ -212,7 +212,7 @@ function resourceMarkup(resources){
  if(!resources.items?.length)return '<p class="resource-empty">Nessuna delle risorse mappate è stata rilevata in questa zona.</p>';
  return resources.items.map(r=>'<div class="resource-row"><span class="resource-icon">'+r.icon+'</span><div class="resource-copy"><strong>'+escHtml(r.label)+'</strong><small>'+fmtArea(r.area_m2)+' di superficie · '+r.share_pct+'%</small><span class="resource-meter"><i style="width:'+Math.min(100,r.share_pct)+'%"></i></span></div></div>').join("");
 }
-function profileInitials(name){return String(name||"G").trim().split(/\\s+/).slice(0,2).map(s=>s[0]||"").join("").toUpperCase()}
+function profileInitials(name){return String(name||"G").trim().split(/\s+/).slice(0,2).map(s=>s[0]||"").join("").toUpperCase()}
 function renderProfile(){
  if(!currentUser)return;
  const meta=currentUser.user_metadata||{},name=playerName||displayName(currentUser),photo=meta.avatar_url||meta.picture||meta.photo_url||"";
