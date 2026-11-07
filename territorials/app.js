@@ -29,7 +29,7 @@ function updateTerritoryControls(){
 }
 function updatePositionBanner(){
  let found=null;if(position)for(const t of savedTerritories){if(pointInPolygon(position,t.points)){found=t;break}}
- $("territoryName").textContent=found?"Zona di "+found.owner_name:"Zona libera";
+ $("territoryName").textContent=found?(found.territory_name||("Territorio di "+found.owner_name))+" · "+found.owner_name:"Zona libera";
  if(found&&window.lastTerritoryNotice!==found.id){window.lastTerritoryNotice=found.id;showToast("Zona di "+found.owner_name)}
  if(!found)window.lastTerritoryNotice=null;
 }
@@ -45,9 +45,12 @@ async function loadZones(){
  if(error)throw error;
  drawnLayer.clearLayers();savedTerritories=(data||[]).map(z=>({...z,points:Array.isArray(z.points)?z.points:[],resources:z.resources||{status:"unknown",items:[]}}));
  savedTerritories.forEach(z=>{
-  const poly=L.polygon(z.points,{color:z.owner_id===currentUser?.id?"#16bd91":"#6687e8",weight:3,fillColor:z.owner_id===currentUser?.id?"#25d6a6":"#8298f0",fillOpacity:.22}).addTo(drawnLayer);
-  poly.bindTooltip("Zona di "+escHtml(z.owner_name),{sticky:true,direction:"top"});
-  poly.bindPopup("<b>Zona di "+escHtml(z.owner_name)+"</b><br>"+fmtArea(Number(z.area_m2)||0)+"<br><small>"+new Date(z.created_at).toLocaleDateString("it-IT")+"</small>");
+  const own=z.owner_id===currentUser?.id,color=own?"#16d6ad":"#8b78ff";
+  const poly=L.polygon(z.points,{color,weight:3.5,opacity:.95,dashArray:"7 5",lineCap:"round",fillColor:color,fillOpacity:.18,className:"territory-glow"}).addTo(drawnLayer);
+  const center=poly.getBounds().getCenter(),territoryName=z.territory_name||("Territorio di "+(z.owner_name||"Giocatore"));
+  const avatar=z.owner_avatar_url||"",avatarMarkup=avatar?'<img src="'+escHtml(avatar)+'" alt="">':'<span>'+escHtml(profileInitials(z.owner_name))+'</span>';
+  L.marker(center,{interactive:true,keyboard:false,icon:L.divIcon({className:"territory-label-wrap",html:'<div class="territory-map-label">'+avatarMarkup+'<span class="territory-label-copy"><strong>'+escHtml(territoryName)+'</strong><small>'+escHtml(z.owner_name||"Giocatore")+'</small></span></div>',iconSize:[210,48],iconAnchor:[105,24]})}).addTo(drawnLayer);
+  poly.bindPopup('<b>'+escHtml(territoryName)+'</b><br>Proprietario: '+escHtml(z.owner_name||"Giocatore")+'<br>'+fmtArea(Number(z.area_m2)||0)+'<br><small>'+new Date(z.created_at).toLocaleDateString("it-IT")+'</small>');
  });
  updatePositionBanner();
  updateTerritoryControls();
@@ -220,6 +223,7 @@ function renderProfile(){
  $("profileEmail").textContent=currentUser.email||"Account ospite";
  $("profileAvatar").innerHTML=photo?'<img src="'+escHtml(photo)+'" alt="Foto profilo">':escHtml(profileInitials(name));
  $("profileDetails").innerHTML='<div><small>TIPO ACCOUNT</small><strong>'+(currentUser.is_anonymous?"Ospite":"Giocatore registrato")+'</strong></div><div><small>COLONIA</small><strong>'+colony.population+' abitanti</strong></div>';
+ const upload=$("avatarUploadStatus");if(upload)upload.textContent=photo?"Immagine profilo impostata. Puoi sostituirla quando vuoi.":"Carica una foto per farti riconoscere sulla mappa.";
 }
 function renderTerritoryTab(tab){
  const content=$("territoryTabContent");
@@ -255,7 +259,7 @@ function perimeter(points){let total=0;for(let i=0;i<points.length;i++)total+=di
 function fmtDistance(v){return v>=1000?(v/1000).toFixed(2)+" km":Math.round(v)+" m"}
 function showZoneDetails(z,first){
  currentZoneDetailsId=z.id;
- $("zoneTitle").textContent=first?"Hai chiuso la tua prima zona!":"Zona conquistata!";
+ $("zoneTitle").textContent=first?"Hai chiuso la tua prima zona!":"Zona conquistata!";$("territoryNameInput").value=z.territory_name||("Territorio di "+z.owner_name);
  $("zoneDescription").textContent="La zona è stata registrata a nome di "+z.owner_name+".";
  $("zoneArea").textContent=fmtArea(Number(z.area_m2));
  $("zonePerimeter").textContent=fmtDistance(Number(z.perimeter_m));
@@ -267,7 +271,7 @@ function showZoneDetails(z,first){
 }
 async function saveClosedZone(points,m2,walked){
  if(!currentUser){showAuth("Accedi o registrati per salvare la tua zona.");return null}
- const ownerId=currentUser.id,name=playerName||displayName(currentUser),resources={status:"pending",items:[]},row={owner_id:ownerId,owner_name:name,points:points.map(p=>({lat:p.lat,lng:p.lng})),area_m2:Math.round(m2),perimeter_m:Math.round(perimeter(points)),distance_m:Math.round(walked),resources,created_at:new Date().toISOString()};
+ const ownerId=currentUser.id,name=playerName||displayName(currentUser),avatar=currentUser.user_metadata?.avatar_url||currentUser.user_metadata?.picture||currentUser.user_metadata?.photo_url||null,resources={status:"pending",items:[]},row={owner_id:ownerId,owner_name:name,owner_avatar_url:avatar,territory_name:"Territorio di "+name,points:points.map(p=>({lat:p.lat,lng:p.lng})),area_m2:Math.round(m2),perimeter_m:Math.round(perimeter(points)),distance_m:Math.round(walked),resources,created_at:new Date().toISOString()};
  // La nuova conquista sostituisce la riga del giocatore, mantenendo valida la regola di una sola zona per account.
  const previous=savedTerritories.find(z=>z.owner_id===ownerId);
  const result=previous
@@ -364,6 +368,30 @@ async function tryCloseLoop(current){
 }
 function stopTracking(completed){recording=false;$("startBtn").disabled=false;$("startBtn").textContent="Inizia a tracciare";$("cancelBtn").disabled=true;$("liveDot").classList.remove("active");if(trackLine){map.removeLayer(trackLine);trackLine=null}if(!completed){track=[];totalDistance=0;updateStats();$("drawState").textContent="Tracciamento annullato";$("hint").textContent="Quando vuoi, puoi iniziare un nuovo percorso."}updateTerritoryControls()}
 function cancelTracking(){if(!recording)return;stopTracking(false);$("territoryName").textContent="Zona libera";showToast("Tracciamento annullato")}
+
+async function saveTerritoryName(){
+ const z=savedTerritories.find(item=>item.id===currentZoneDetailsId);if(!z||z.owner_id!==currentUser?.id)return;
+ const name=$("territoryNameInput").value.trim().slice(0,36);if(!name){showToast("Inserisci un nome per il territorio.");return;}
+ const btn=$("saveTerritoryNameBtn");btn.disabled=true;
+ try{const {error}=await db.from("territorials_zones").update({territory_name:name}).eq("id",z.id).eq("owner_id",currentUser.id);if(error)throw error;z.territory_name=name;await loadZones();showToast("Nome del territorio aggiornato.");}
+ catch(e){showToast("Non è stato possibile salvare il nome: "+(e.message||"riprova."));}finally{btn.disabled=false}
+}
+async function uploadProfileAvatar(){
+ const input=$("avatarFile"),file=input.files?.[0];if(!file)return;
+ if(!["image/jpeg","image/png","image/webp"].includes(file.type)){showToast("Usa un'immagine JPG, PNG o WebP.");input.value="";return;}
+ if(file.size>3*1024*1024){showToast("L'immagine deve pesare al massimo 3 MB.");input.value="";return;}
+ const status=$("avatarUploadStatus"),button=$("avatarUploadBtn");button.disabled=true;status.textContent="Caricamento in corso…";
+ try{
+  const ext=file.type==="image/png"?"png":file.type==="image/webp"?"webp":"jpg",path=currentUser.id+"/avatar-"+Date.now()+"."+ext;
+  const {error:uploadError}=await db.storage.from("territory-avatars").upload(path,file,{contentType:file.type,cacheControl:"3600",upsert:true});if(uploadError)throw uploadError;
+  const {data:publicData}=db.storage.from("territory-avatars").getPublicUrl(path),url=publicData.publicUrl;
+  const {data,error}=await db.auth.updateUser({data:{avatar_url:url}});if(error)throw error;currentUser=data.user||currentUser;
+  const {error:zoneError}=await db.from("territorials_zones").update({owner_avatar_url:url}).eq("owner_id",currentUser.id);if(zoneError)throw zoneError;
+  await loadZones();renderProfile();status.textContent="Foto aggiornata: ora è visibile anche sul territorio.";showToast("Avatar aggiornato.");
+ }catch(e){console.error("Avatar upload:",e);status.textContent="Caricamento non riuscito. Verifica la configurazione dello spazio avatar.";showToast("Errore caricamento avatar: "+(e.message||"riprova."));}
+ finally{button.disabled=false;input.value=""}
+}
+
 async function deleteOwnTerritory(){
  const own=savedTerritories.find(z=>z.owner_id===currentUser?.id);
  if(!own){showToast("Non hai una zona da eliminare.");updateTerritoryControls();return}
@@ -381,6 +409,7 @@ async function deleteOwnTerritory(){
  finally{btn.disabled=false;updateTerritoryControls()}
 }
 $("deleteZoneBtn").addEventListener("click",deleteOwnTerritory);
+$("avatarUploadBtn").addEventListener("click",()=>$("avatarFile").click());$("avatarFile").addEventListener("change",uploadProfileAvatar);$("saveTerritoryNameBtn").addEventListener("click",saveTerritoryName);
 function closeSidePanels(){["profilePanel","territoryPanel","drawPanel"].forEach(id=>$(id).hidden=true);document.querySelectorAll(".rail-button").forEach(b=>b.classList.remove("active"))}
 function toggleSidePanel(id,button){
  const wasOpen=!$(id).hidden;closeSidePanels();
