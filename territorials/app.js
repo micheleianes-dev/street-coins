@@ -1,4 +1,4 @@
-/* TERRITORIALS — V1.4.0 una zona per giocatore, eliminazione zona */
+/* TERRITORIALS — V1.5.0 sostituzione automatica zona, aree verdi OSM */
 const TEST_MODE=true;
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
@@ -21,9 +21,9 @@ function updateTerritoryControls(){
  const start=$("startBtn"),del=$("deleteZoneBtn");
  if(!start||!del)return;
  del.hidden=!own;
- start.disabled=!!own||recording;
- start.textContent=own?"Hai già una zona":"Inizia a tracciare";
- if(own&&!recording)$("hint").textContent="Hai già conquistato una zona. Eliminala per poterne creare un’altra.";
+ start.disabled=recording;
+ start.textContent="Inizia a tracciare";
+ if(own&&!recording)$("hint").textContent="Hai già una zona: quando ne conquisterai un’altra, questa verrà sostituita automaticamente.";
 }
 function updatePositionBanner(){
  let found=null;if(position)for(const t of savedTerritories){if(pointInPolygon(position,t.points)){found=t;break}}
@@ -101,7 +101,7 @@ function territoryFeature(points){
  return turf.polygon([ring]);
 }
 function resourceClass(tags){
- if(tags.landuse==="forest")return "forest";
+ if(tags.landuse==="forest"||tags.natural==="wood"||tags.landcover==="trees"||tags.leisure==="park"||tags.landuse==="grass"||tags.natural==="scrub"||tags.natural==="heath"||tags.natural==="grassland")return "forest";
  if(tags.landuse==="farmland"||tags.landuse==="meadow")return "food";
  if(tags.natural==="water")return "water";
  if(tags.building||tags.landuse==="industrial")return "materials";
@@ -110,7 +110,7 @@ function resourceClass(tags){
 async function calculateTerritoryResources(points){
  const boundary=territoryFeature(points);if(!boundary||!window.turf)return {status:"unknown",items:[],message:"Analisi cartografica non disponibile."};
  const poly=points.map(p=>p.lat+" "+p.lng).join(" ");
- const query='[out:json][timeout:25];(way(poly:"'+poly+'")[landuse=forest];way(poly:"'+poly+'")[landuse=farmland];way(poly:"'+poly+'")[landuse=meadow];way(poly:"'+poly+'")[building];way(poly:"'+poly+'")[landuse=industrial];way(poly:"'+poly+'")[natural=water];);out body geom;';
+ const query='[out:json][timeout:25];(way(poly:"'+poly+'")[landuse=forest];way(poly:"'+poly+'")[natural=wood];way(poly:"'+poly+'")[landcover=trees];way(poly:"'+poly+'")[leisure=park];way(poly:"'+poly+'")[landuse=grass];way(poly:"'+poly+'")[natural=scrub];way(poly:"'+poly+'")[natural=heath];way(poly:"'+poly+'")[natural=grassland];way(poly:"'+poly+'")[landuse=farmland];way(poly:"'+poly+'")[landuse=meadow];way(poly:"'+poly+'")[building];way(poly:"'+poly+'")[landuse=industrial];way(poly:"'+poly+'")[natural=water];);out body geom;';
  const endpoints=["https://overpass-api.de/api/interpreter","https://overpass.kumi.systems/api/interpreter"];
  let data=null,lastError=null;
  for(const endpoint of endpoints){try{const response=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded;charset=UTF-8"},body:"data="+encodeURIComponent(query)});if(!response.ok)throw new Error("Overpass HTTP "+response.status);data=await response.json();break}catch(e){lastError=e}}
@@ -168,10 +168,17 @@ function showZoneDetails(z,first){
 }
 async function saveClosedZone(points,m2,walked){
  if(!currentUser){showAuth("Accedi o registrati per salvare la tua zona.");return null}
- const ownerId=currentUser.id,name=playerName||displayName(currentUser),resources={status:"pending",items:[]},row={owner_id:ownerId,owner_name:name,points:points.map(p=>({lat:p.lat,lng:p.lng})),area_m2:Math.round(m2),perimeter_m:Math.round(perimeter(points)),distance_m:Math.round(walked),resources};
- const {data,error}=await db.from("territorials_zones").insert(row).select("*").single();
+ const ownerId=currentUser.id,name=playerName||displayName(currentUser),resources={status:"pending",items:[]},row={owner_id:ownerId,owner_name:name,points:points.map(p=>({lat:p.lat,lng:p.lng})),area_m2:Math.round(m2),perimeter_m:Math.round(perimeter(points)),distance_m:Math.round(walked),resources,created_at:new Date().toISOString()};
+ // La nuova conquista sostituisce la riga del giocatore, mantenendo valida la regola di una sola zona per account.
+ const previous=savedTerritories.find(z=>z.owner_id===ownerId);
+ const result=previous
+  ?await db.from("territorials_zones").update(row).eq("owner_id",ownerId).select("*").single()
+  :await db.from("territorials_zones").insert(row).select("*").single();
+ const {data,error}=result;
  if(error)throw error;
- savedTerritories.push(data);updateTerritoryControls();
+ savedTerritories=savedTerritories.filter(z=>z.owner_id!==ownerId);
+ savedTerritories.push(data);
+ await loadZones();
  // La conquista viene mostrata subito; l'analisi OSM prosegue in background.
  calculateTerritoryResources(points).then(async result=>{
   const {error:updateError}=await db.from("territorials_zones").update({resources:result}).eq("id",data.id).eq("owner_id",ownerId);
@@ -237,7 +244,7 @@ function startGpsWatch(){
  try{watchId=navigator.geolocation.watchPosition(event=>{if(gpsWatchdog){clearTimeout(gpsWatchdog);gpsWatchdog=null}$("locateBtn").disabled=false;onPosition(event)},gpsError,{enableHighAccuracy:true,maximumAge:0,timeout:30000})}
  catch(error){if(gpsWatchdog){clearTimeout(gpsWatchdog);gpsWatchdog=null}watchId=null;$("locateBtn").disabled=false;$("locateBtn").textContent="◎ Riprova GPS";showToast("Impossibile avviare il GPS: "+(error.message||"controlla i permessi."))}
 }
-function startTracking(){if(!currentUser){showAuth("Accedi o registrati prima di iniziare a tracciare.");return}if(savedTerritories.some(z=>z.owner_id===currentUser.id)){showToast("Puoi avere una sola zona. Elimina quella attuale per crearne un’altra.");updateTerritoryControls();return}if(!TEST_MODE&&!navigator.geolocation){showToast("GPS non disponibile in questo browser.");return}if(recording)return;recording=true;track=[];totalDistance=0;trackLine=L.polyline([],{color:"#16bd91",weight:5,opacity:.95,lineCap:"round",lineJoin:"round"}).addTo(map);$("startBtn").textContent="Tracciamento attivo";$("startBtn").disabled=true;$("cancelBtn").disabled=false;$("drawState").textContent="Stai disegnando il tuo confine";$("liveDot").classList.add("active");$("hint").textContent="Cammina per disegnare il perimetro. Torna vicino al punto iniziale per chiuderlo.";if(TEST_MODE){if(position){track.push(L.latLng(position.lat,position.lng));trackLine.addLatLng(track[0]);updateStats()}else{showToast("Posiziona prima il segnalino sulla mappa.");stopTracking(false)}}else if(watchId===null)startGpsWatch();else if(position&&accuracy<=MAX_TRACK_ACCURACY){track.push(L.latLng(position.lat,position.lng));trackLine.addLatLng(track[0]);updateStats()}}
+function startTracking(){if(!currentUser){showAuth("Accedi o registrati prima di iniziare a tracciare.");return}if(!TEST_MODE&&!navigator.geolocation){showToast("GPS non disponibile in questo browser.");return}if(recording)return;recording=true;track=[];totalDistance=0;trackLine=L.polyline([],{color:"#16bd91",weight:5,opacity:.95,lineCap:"round",lineJoin:"round"}).addTo(map);$("startBtn").textContent="Tracciamento attivo";$("startBtn").disabled=true;$("cancelBtn").disabled=false;$("drawState").textContent="Stai disegnando il tuo confine";$("liveDot").classList.add("active");$("hint").textContent="Cammina per disegnare il perimetro. Torna vicino al punto iniziale per chiuderlo.";if(TEST_MODE){if(position){track.push(L.latLng(position.lat,position.lng));trackLine.addLatLng(track[0]);updateStats()}else{showToast("Posiziona prima il segnalino sulla mappa.");stopTracking(false)}}else if(watchId===null)startGpsWatch();else if(position&&accuracy<=MAX_TRACK_ACCURACY){track.push(L.latLng(position.lat,position.lng));trackLine.addLatLng(track[0]);updateStats()}}
 async function tryCloseLoop(current){
  if(track.length<MIN_POINTS||!currentUser)return;
  const start=track[0],d=distance(start,current);if(d>CLOSE_DISTANCE)return;
@@ -249,7 +256,6 @@ async function tryCloseLoop(current){
   $("drawState").textContent="Salvataggio del territorio…";$("hint").textContent="Perimetro chiuso: sto registrando la tua conquista.";
   const z=await saveClosedZone(polygonPoints,m2,totalDistance);
   if(!z) return;
-  L.polygon([...polygonPoints,polygonPoints[0]],{color:"#159f7c",weight:3,fillColor:"#25d6a6",fillOpacity:.28}).addTo(drawnLayer).bindTooltip("Zona di "+escHtml(z.owner_name));
   stopTracking(true);$("areaValue").textContent=fmtArea(m2);$("drawState").textContent="Territorio creato!";$("hint").textContent="Hai chiuso il perimetro: il tuo territorio è stato salvato.";
   showZoneDetails(z,first);updatePositionBanner();
  }catch(e){showToast("Non è stato possibile salvare la zona: "+(e.message||"riprova"));$("hint").textContent="Errore nel salvataggio. Il perimetro è ancora aperto: torna vicino al punto iniziale per riprovare."}
