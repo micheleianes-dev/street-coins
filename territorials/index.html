@@ -19,6 +19,7 @@
     <div class="brand-copy"><strong>TERRITORIALS</strong><small>IL MONDO È IL TUO CAMPO DI GIOCO</small></div>
     <div class="gps-pill" id="gpsPill"><i></i><span>GPS non attivo</span></div><div class="test-mode-pill" id="testModePill" hidden>MODALITÀ TEST</div><button id="modeToggleBtn" class="mode-toggle" type="button" aria-pressed="true">Passa a GPS</button>
   </header>
+  <aside id="colonyPanel" class="colony-panel" hidden><div class="colony-title"><span>🏕️ COLONIA</span><strong><span id="colonyPopulation">1</span> abitanti</strong></div><div class="colony-inventory-title">RACCOLTA RISORSE</div><div id="colonyResources"></div><div class="colony-footer"><span>Forza lavoro libera</span><strong id="colonyUnassigned">1 non assegnato</strong></div><small class="colony-rate-note">1 lavoratore raccoglie 1 unità al minuto. La colonia lavora anche quando sei offline.</small></aside>
   <section class="territory-banner" id="territoryBanner">
     <span class="banner-symbol">⌖</span>
     <div><small>TI TROVI IN</small><strong id="territoryName">Zona non rilevata</strong></div>
@@ -39,7 +40,7 @@
   </section>
   <button id="recenterBtn" class="recenter" aria-label="Centra sulla mia posizione" disabled>⌖</button>
   <div class="map-legend"><span><i class="line-key"></i> Il tuo percorso</span><span><i class="area-key"></i> Territorio conquistato</span></div>
-  <div class="app-version" aria-label="Versione applicazione">TERRITORIALS <span>v1.6.0</span></div>
+  <div class="app-version" aria-label="Versione applicazione">TERRITORIALS <span>v2.0.0</span></div>
   <div class="toast" id="toast" role="status"></div>
 </main>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
