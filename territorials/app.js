@@ -110,13 +110,6 @@ function applyMovementPoint(p){
   if(track.length===0){track.push(p);trackLine.addLatLng(p)}
   else{const last=track[track.length-1],d=distance(last,p);if(d>=4){track.push(p);totalDistance+=d;trackLine.addLatLng(p)}}
   updateStats();
-if(TEST_MODE){
- $("testModePill").hidden=false;$("gpsPill").hidden=true;$("locateBtn").hidden=true;
- $("drawState").textContent="Modalità test pronta";
- $("hint").textContent="Trascina il segnalino verde sulla mappa per simulare una camminata. Premi «Inizia a tracciare» per disegnare un territorio.";
- const initial=map.getCenter();position={lat:initial.lat,lng:initial.lng};accuracy=5;
- updatePlayerMarker(initial);updateAccuracyCircle(initial);$("recenterBtn").disabled=false;updatePositionBanner();
-}
 tryCloseLoop(p);
  }
 }
@@ -180,3 +173,10 @@ $("locateBtn").addEventListener("click",startGpsWatch);$("startBtn").addEventLis
 $("recenterBtn").addEventListener("click",()=>{if(position){map.setView([position.lat,position.lng],17,{animate:false});if(playerMarker)playerMarker.setLatLng([position.lat,position.lng])}else{showToast("Attiva prima il GPS.");startGpsWatch()}});
 window.addEventListener("beforeunload",()=>{if(watchId!==null)navigator.geolocation.clearWatch(watchId)});
 updateStats();
+if(TEST_MODE){
+ $("testModePill").hidden=false;$("gpsPill").hidden=true;$("locateBtn").hidden=true;
+ $("drawState").textContent="Modalità test pronta";
+ $("hint").textContent="Trascina il segnalino verde sulla mappa per simulare una camminata. Premi «Inizia a tracciare» per disegnare un territorio.";
+ const initial=map.getCenter();position={lat:initial.lat,lng:initial.lng};accuracy=5;
+ updatePlayerMarker(initial);updateAccuracyCircle(initial);$("recenterBtn").disabled=false;updatePositionBanner();
+}
