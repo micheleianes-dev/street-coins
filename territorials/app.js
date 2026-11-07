@@ -157,7 +157,7 @@ function renderColony(){
  else if(!types.length)html='<p class="colony-note">Conquista una zona con risorse mappate per iniziare la raccolta.</p>';
  else html=types.map(type=>{
   const workers=Number(colony.assignments[type])||0,amount=Number(colony.inventory[type])||0,rate=workers*RESOURCE_RATE_PER_WORKER_MINUTE;
-  return '<div class="colony-resource"><div class="colony-resource-head"><span>'+RESOURCE_TYPES[type].icon+' '+RESOURCE_TYPES[type].label+'</span><strong>'+amount.toFixed(2)+'</strong></div><div class="colony-resource-sub"><span>'+workers+' lavoratori</span><span>+'+rate.toFixed(0)+'/min</span></div><div class="colony-worker-controls"><button type="button" data-resource="'+type+'" data-delta="-1" aria-label="Rimuovi un lavoratore">−</button><span>'+workers+'</span><button type="button" data-resource="'+type+'" data-delta="1" aria-label="Aggiungi un lavoratore">+</button></div></div>';
+  return '<div class="colony-resource colony-'+type+'"><div class="colony-resource-head"><span>'+RESOURCE_TYPES[type].icon+' '+RESOURCE_TYPES[type].label+'</span><strong>'+amount.toFixed(2)+'</strong></div><div class="colony-resource-sub"><span>'+workers+' lavoratori</span><span>+'+rate.toFixed(0)+'/min</span></div><div class="colony-worker-controls"><button type="button" data-resource="'+type+'" data-delta="-1" aria-label="Rimuovi un lavoratore">−</button><span>'+workers+'</span><button type="button" data-resource="'+type+'" data-delta="1" aria-label="Aggiungi un lavoratore">+</button></div></div>';
  }).join("");
  $("colonyResources").innerHTML=html;
  const unassigned=colony.population-colonyTotalsAssigned(),free=$("colonyUnassigned");
