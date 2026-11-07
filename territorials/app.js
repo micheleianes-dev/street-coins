@@ -163,10 +163,12 @@ function updateProfileNotifications(announceUnemployed=false){
  if(unemployed>0)messages.push(unemployed+" lavorator"+(unemployed===1?"e disoccupato":"i disoccupati"));
  $("profileNav").title=messages.length? "Profilo · "+messages.join(" · "):"Profilo";
  $("profileNav").setAttribute("aria-label",messages.length?"Profilo, notifiche: "+messages.join(", "):"Profilo");
- if(announceUnemployed&&unemployed>0&&unemployed!==lastAnnouncedUnemployed){
-  showToast("Hai "+unemployed+" "+(unemployed===1?"lavoratore disoccupato":"lavoratori disoccupati")+". Apri Il tuo territorio → Popolazione per assegnarli.");
+ if(announceUnemployed){
+  if(unemployed>0&&unemployed!==lastAnnouncedUnemployed){
+   showToast("Hai "+unemployed+" "+(unemployed===1?"lavoratore disoccupato":"lavoratori disoccupati")+". Apri Il tuo territorio → Popolazione per assegnarli.");
+  }
+  lastAnnouncedUnemployed=unemployed;
  }
- lastAnnouncedUnemployed=unemployed;
 }
 function colonyResourceTypes(){
  const own=savedTerritories.find(z=>z.owner_id===currentUser?.id);
