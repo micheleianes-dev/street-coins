@@ -1,4 +1,4 @@
-/* TERRITORIALS — V2.2.0 identità territoriale, colonia e risorse */
+/* TERRITORIALS — V2.4.0 identità di conquista, colonia e risorse */
 let TEST_MODE=true;
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
@@ -46,10 +46,10 @@ async function loadZones(){
  drawnLayer.clearLayers();savedTerritories=(data||[]).map(z=>({...z,points:Array.isArray(z.points)?z.points:[],resources:z.resources||{status:"unknown",items:[]}}));
  savedTerritories.forEach(z=>{
   const own=z.owner_id===currentUser?.id,color=own?"#16d6ad":"#8b78ff";
-  const poly=L.polygon(z.points,{color,weight:3.5,opacity:.95,dashArray:"7 5",lineCap:"round",fillColor:color,fillOpacity:.18,className:"territory-glow"}).addTo(drawnLayer);
+  const poly=L.polygon(z.points,{color,weight:own?4:3,opacity:.98,dashArray:own?"3 6":"10 5 2 5",lineCap:"round",lineJoin:"round",fillColor:color,fillOpacity:own?0.2:0.13,className:own?"territory-glow territory-own":"territory-glow territory-rival"}).addTo(drawnLayer);
   const center=poly.getBounds().getCenter(),territoryName=z.territory_name||("Territorio di "+(z.owner_name||"Giocatore"));
   const avatar=z.owner_avatar_url||"",avatarMarkup=avatar?'<img src="'+escHtml(avatar)+'" alt="">':'<span>'+escHtml(profileInitials(z.owner_name))+'</span>';
-  L.marker(center,{interactive:true,keyboard:false,icon:L.divIcon({className:"territory-label-wrap",html:'<div class="territory-map-label">'+avatarMarkup+'<span class="territory-label-copy"><strong>'+escHtml(territoryName)+'</strong><small>'+escHtml(z.owner_name||"Giocatore")+'</small></span></div>',iconSize:[210,48],iconAnchor:[105,24]})}).addTo(drawnLayer);
+  L.marker(center,{interactive:true,keyboard:false,icon:L.divIcon({className:"territory-label-wrap",html:'<div class="territory-map-label '+(own?"is-own":"is-rival")+'">'+avatarMarkup+'<span class="territory-label-copy"><strong>'+escHtml(territoryName)+'</strong><small>'+escHtml(z.owner_name||"Giocatore")+'</small></span></div>',iconSize:[210,48],iconAnchor:[105,24]})}).addTo(drawnLayer);
   poly.bindPopup('<b>'+escHtml(territoryName)+'</b><br>Proprietario: '+escHtml(z.owner_name||"Giocatore")+'<br>'+fmtArea(Number(z.area_m2)||0)+'<br><small>'+new Date(z.created_at).toLocaleDateString("it-IT")+'</small>');
  });
  updatePositionBanner();
@@ -157,7 +157,7 @@ function renderColony(){
  else if(!types.length)html='<p class="colony-note">Conquista una zona con risorse mappate per iniziare la raccolta.</p>';
  else html=types.map(type=>{
   const workers=Number(colony.assignments[type])||0,amount=Number(colony.inventory[type])||0,rate=workers*RESOURCE_RATE_PER_WORKER_MINUTE;
-  return '<div class="colony-resource"><div class="colony-resource-head"><span>'+RESOURCE_TYPES[type].icon+' '+RESOURCE_TYPES[type].label+'</span><strong>'+amount.toFixed(2)+'</strong></div><div class="colony-resource-sub"><span>'+workers+' lavoratori</span><span>+'+rate.toFixed(0)+'/min</span></div><div class="colony-worker-controls"><button type="button" data-resource="'+type+'" data-delta="-1" aria-label="Rimuovi un lavoratore">−</button><span>'+workers+'</span><button type="button" data-resource="'+type+'" data-delta="1" aria-label="Aggiungi un lavoratore">+</button></div></div>';
+  return '<div class="colony-resource colony-'+type+'"><div class="colony-resource-head"><span>'+RESOURCE_TYPES[type].icon+' '+RESOURCE_TYPES[type].label+'</span><strong>'+amount.toFixed(2)+'</strong></div><div class="colony-resource-sub"><span>'+workers+' lavoratori</span><span>+'+rate.toFixed(0)+'/min</span></div><div class="colony-worker-controls"><button type="button" data-resource="'+type+'" data-delta="-1" aria-label="Rimuovi un lavoratore">−</button><span>'+workers+'</span><button type="button" data-resource="'+type+'" data-delta="1" aria-label="Aggiungi un lavoratore">+</button></div></div>';
  }).join("");
  $("colonyResources").innerHTML=html;
  const unassigned=colony.population-colonyTotalsAssigned(),free=$("colonyUnassigned");
@@ -213,7 +213,7 @@ function resourceMarkup(resources){
  if(resources?.status==="pending")return '<p class="resource-empty">Zona salvata. Sto analizzando le risorse OpenStreetMap…</p>';
  if(!resources||resources.status!=="ok")return '<p class="resource-empty">'+escHtml(resources?.message||"Nessuna informazione cartografica disponibile per questa zona.")+'</p>';
  if(!resources.items?.length)return '<p class="resource-empty">Nessuna delle risorse mappate è stata rilevata in questa zona.</p>';
- return resources.items.map(r=>'<div class="resource-row"><span class="resource-icon">'+r.icon+'</span><div class="resource-copy"><strong>'+escHtml(r.label)+'</strong><small>'+fmtArea(r.area_m2)+' di superficie · '+r.share_pct+'%</small><span class="resource-meter"><i style="width:'+Math.min(100,r.share_pct)+'%"></i></span></div></div>').join("");
+ return resources.items.map(r=>'<div class="resource-row resource-'+r.type+'"><span class="resource-icon">'+r.icon+'</span><div class="resource-copy"><strong>'+escHtml(r.label)+'</strong><small>'+fmtArea(r.area_m2)+' di superficie · '+r.share_pct+'%</small><span class="resource-meter"><i style="width:'+Math.min(100,r.share_pct)+'%"></i></span></div></div>').join("");
 }
 function profileInitials(name){return String(name||"G").trim().split(/\s+/).slice(0,2).map(s=>s[0]||"").join("").toUpperCase()}
 function renderProfile(){
@@ -256,7 +256,7 @@ function renderTerritoryTab(tab){
   content.innerHTML='<div class="tab-intro">Risorse naturali individuate all’interno del tuo territorio.</div>'+(resources?.status==="pending"?'<p class="resource-empty">Analisi delle risorse in corso…</p>':resourceMarkup(resources));
  }else if(tab==="warehouse"){
   const types=["forest","food","materials","water"];
-  content.innerHTML='<div class="tab-intro">Materiali raccolti dalla colonia e disponibili per le attività future.</div>'+types.map(type=>'<div class="resource-row"><span class="resource-icon">'+RESOURCE_TYPES[type].icon+'</span><div class="resource-copy"><strong>'+RESOURCE_TYPES[type].label+'</strong><small>Disponibili in magazzino</small></div><strong class="warehouse-amount">'+(Number(colony.inventory[type])||0).toFixed(2)+'</strong></div>').join("");
+  content.innerHTML='<div class="tab-intro">Materiali raccolti dalla colonia e disponibili per le attività future.</div>'+types.map(type=>'<div class="resource-row resource-'+type+'"><span class="resource-icon">'+RESOURCE_TYPES[type].icon+'</span><div class="resource-copy"><strong>'+RESOURCE_TYPES[type].label+'</strong><small>Disponibili in magazzino</small></div><strong class="warehouse-amount">'+(Number(colony.inventory[type])||0).toFixed(2)+'</strong></div>').join("");
  }else{
   content.innerHTML='<div class="create-placeholder"><div>⚒</div><strong>Costruisci la tua colonia</strong><p>Qui potrai utilizzare le risorse del magazzino per costruire edifici, strutture e miglioramenti.</p><small>Sezione in preparazione</small></div>';
  }
@@ -269,7 +269,7 @@ function openResources(){
  const pending=own.some(z=>z.resources?.status==="pending");
  $("resourcesIntro").textContent=own.length+" territori · superfici complessive rilevate";
  const pendingMarkup=pending?'<p class="resource-empty">Calcolo risorse in corso…</p>':"";
- const totalsMarkup=known?Object.entries(totals).filter(([,v])=>v>0).map(([k,v])=>'<div class="resource-row"><span class="resource-icon">'+RESOURCE_TYPES[k].icon+'</span><div class="resource-copy"><strong>'+RESOURCE_TYPES[k].label+'</strong><small>'+fmtArea(v)+' complessivi</small></div></div>').join(""):'<p class="resource-empty">Non ci sono ancora dati sulle risorse.</p>';
+ const totalsMarkup=known?Object.entries(totals).filter(([,v])=>v>0).map(([k,v])=>'<div class="resource-row resource-'+k+'"><span class="resource-icon">'+RESOURCE_TYPES[k].icon+'</span><div class="resource-copy"><strong>'+RESOURCE_TYPES[k].label+'</strong><small>'+fmtArea(v)+' complessivi</small></div></div>').join(""):'<p class="resource-empty">Non ci sono ancora dati sulle risorse.</p>';
  $("resourcesList").innerHTML=pending?pendingMarkup+totalsMarkup:totalsMarkup;
  $("resourcesModal").classList.remove("hidden");
  renderColony();
