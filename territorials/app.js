@@ -1,6 +1,6 @@
 /* TERRITORIALS — V1 GPS drawing prototype */
 const map=L.map("map",{zoomControl:false,preferCanvas:true}).setView([46.0679,11.1211],15);
-L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",{maxZoom:20,subdomains:"abcd",attribution:'&copy; OpenStreetMap &copy; CARTO'}).addTo(map);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);
 const $=id=>document.getElementById(id);
 const drawnLayer=L.layerGroup().addTo(map);
 let watchId=null,position=null,track=[],trackLine=null,playerMarker=null,recording=false,totalDistance=0,toastTimer=null;
