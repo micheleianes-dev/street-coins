@@ -10,7 +10,7 @@ const $=id=>document.getElementById(id);
 const drawnLayer=L.layerGroup().addTo(map);
 let watchId=null,gpsWatchdog=null,position=null,accuracy=999,track=[],trackLine=null,playerMarker=null,accuracyCircle=null,recording=false,totalDistance=0,toastTimer=null,hasInitialGpsView=false;
 const CLOSE_DISTANCE=24,MAX_TRACK_ACCURACY=60,MIN_POINTS=5,MIN_AREA=250;
-let savedTerritories=[],currentUser=null,playerName="",lastClosedResources=null;
+let savedTerritories=[],currentUser=null,playerName="",lastClosedResources=null,currentZoneDetailsId=null;
 function distance(a,b){const r=Math.PI/180,R=6371000,dLat=(b.lat-a.lat)*r,dLon=(b.lng-a.lng)*r,x=Math.sin(dLat/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLon/2)**2;return 2*R*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))}
 function area(points){if(points.length<3)return 0;const lat0=points.reduce((s,p)=>s+p.lat,0)/points.length,scaleX=111320*Math.cos(lat0*Math.PI/180),scaleY=110540;let sum=0;for(let i=0;i<points.length;i++){const a=points[i],b=points[(i+1)%points.length];sum+=(a.lng*scaleX)*(b.lat*scaleY)-(b.lng*scaleX)*(a.lat*scaleY)}return Math.abs(sum/2)}
 function fmtArea(value){return value>=10000?(value/10000).toFixed(2)+" ha":Math.round(value)+" m²"}
@@ -137,6 +137,7 @@ async function calculateTerritoryResources(points){
  return {status:"ok",items,source:"OpenStreetMap",analyzed_at:new Date().toISOString()};
 }
 function resourceMarkup(resources){
+ if(resources?.status==="pending")return '<p class="resource-empty">Zona salvata. Sto analizzando le risorse OpenStreetMap…</p>';
  if(!resources||resources.status!=="ok")return '<p class="resource-empty">'+escHtml(resources?.message||"Nessuna informazione cartografica disponibile per questa zona.")+'</p>';
  if(!resources.items?.length)return '<p class="resource-empty">Nessuna delle risorse mappate è stata rilevata in questa zona.</p>';
  return resources.items.map(r=>'<div class="resource-row"><span class="resource-icon">'+r.icon+'</span><div class="resource-copy"><strong>'+escHtml(r.label)+'</strong><small>'+fmtArea(r.area_m2)+' di superficie · '+r.share_pct+'%</small><span class="resource-meter"><i style="width:'+Math.min(100,r.share_pct)+'%"></i></span></div></div>').join("");
@@ -154,6 +155,7 @@ function openResources(){
 function perimeter(points){let total=0;for(let i=0;i<points.length;i++)total+=distance(points[i],points[(i+1)%points.length]);return total}
 function fmtDistance(v){return v>=1000?(v/1000).toFixed(2)+" km":Math.round(v)+" m"}
 function showZoneDetails(z,first){
+ currentZoneDetailsId=z.id;
  $("zoneTitle").textContent=first?"Hai chiuso la tua prima zona!":"Zona conquistata!";
  $("zoneDescription").textContent="La zona è stata registrata a nome di "+z.owner_name+".";
  $("zoneArea").textContent=fmtArea(Number(z.area_m2));
@@ -166,10 +168,24 @@ function showZoneDetails(z,first){
 }
 async function saveClosedZone(points,m2,walked){
  if(!currentUser){showAuth("Accedi o registrati per salvare la tua zona.");return null}
- const name=playerName||displayName(currentUser),resources=await calculateTerritoryResources(points),row={owner_id:currentUser.id,owner_name:name,points:points.map(p=>({lat:p.lat,lng:p.lng})),area_m2:Math.round(m2),perimeter_m:Math.round(perimeter(points)),distance_m:Math.round(walked),resources};
+ const ownerId=currentUser.id,name=playerName||displayName(currentUser),resources={status:"pending",items:[]},row={owner_id:ownerId,owner_name:name,points:points.map(p=>({lat:p.lat,lng:p.lng})),area_m2:Math.round(m2),perimeter_m:Math.round(perimeter(points)),distance_m:Math.round(walked),resources};
  const {data,error}=await db.from("territorials_zones").insert(row).select("*").single();
  if(error)throw error;
- savedTerritories.push(data);updateTerritoryControls();return data;
+ savedTerritories.push(data);updateTerritoryControls();
+ // La conquista viene mostrata subito; l'analisi OSM prosegue in background.
+ calculateTerritoryResources(points).then(async result=>{
+  const {error:updateError}=await db.from("territorials_zones").update({resources:result}).eq("id",data.id).eq("owner_id",ownerId);
+  if(updateError)throw updateError;
+  const local=savedTerritories.find(z=>z.id===data.id);if(local)local.resources=result;
+  if(currentZoneDetailsId===data.id&&!$("zoneModal").classList.contains("hidden"))$("zoneResources").innerHTML="<h3>Risorse di questo territorio</h3>"+resourceMarkup(result);
+  showToast(result.status==="ok"?"Analisi delle risorse completata.":"Zona salvata; dati risorse non disponibili al momento.");
+ }).catch(error=>{
+  console.error("Territorials resource analysis:",error);
+  const fallback={status:"unknown",items:[],message:"Zona salvata. Non è stato possibile completare l’analisi delle risorse."};
+  const local=savedTerritories.find(z=>z.id===data.id);if(local)local.resources=fallback;
+  if(currentZoneDetailsId===data.id&&!$("zoneModal").classList.contains("hidden"))$("zoneResources").innerHTML="<h3>Risorse di questo territorio</h3>"+resourceMarkup(fallback);
+ });
+ return data;
 }
 
 function updatePlayerMarker(p){
@@ -230,6 +246,7 @@ async function tryCloseLoop(current){
  if(window.zoneSaving)return;window.zoneSaving=true;
  try{
   const first=savedTerritories.filter(z=>z.owner_id===currentUser.id).length===0;
+  $("drawState").textContent="Salvataggio del territorio…";$("hint").textContent="Perimetro chiuso: sto registrando la tua conquista.";
   const z=await saveClosedZone(polygonPoints,m2,totalDistance);
   if(!z) return;
   L.polygon([...polygonPoints,polygonPoints[0]],{color:"#159f7c",weight:3,fillColor:"#25d6a6",fillOpacity:.28}).addTo(drawnLayer).bindTooltip("Zona di "+escHtml(z.owner_name));
