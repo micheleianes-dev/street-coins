@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <meta name="theme-color" content="#fff4df">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
 <title>Territorials — Esci, esplora, incontra</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="./style.css">
@@ -19,7 +22,7 @@
     <div class="brand-copy"><strong>TERRITORIALS</strong><small>ESCI. ESPLORA. INCONTRA.</small></div>
     <div class="gps-pill" id="gpsPill"><i></i><span>GPS non attivo</span></div><div class="test-mode-pill" id="testModePill" hidden>MODALITÀ TEST</div>
   </header>
-  <nav class="game-rail" aria-label="Menu di gioco"><button class="rail-button" id="profileNav" aria-label="Profilo" title="Profilo"><span>♙</span></button><button class="rail-button" id="exploreNav" aria-label="Crea la tua zona" title="Crea la tua zona"><span>⌖</span></button><button class="rail-button" id="territoryNav" aria-label="Il tuo territorio" title="Il tuo territorio"><span>▦</span></button></nav>
+  <nav class="game-rail" aria-label="Menu di gioco"><button class="rail-button" id="profileNav" aria-label="Profilo" title="Profilo"><span>🧑‍🚀</span></button><button class="rail-button" id="exploreNav" aria-label="Crea la tua zona" title="Crea la tua zona"><span>🧭</span></button><button class="rail-button" id="territoryNav" aria-label="Il tuo territorio" title="Il tuo territorio"><span>🏰</span></button></nav>
   <section id="profilePanel" class="side-panel profile-panel" hidden><div class="side-panel-head"><strong>PROFILO GIOCATORE</strong><button class="panel-close" data-close-panel aria-label="Chiudi">×</button></div><div class="profile-summary"><div id="profileAvatar" class="profile-avatar">?</div><div><strong id="profileName">Giocatore</strong><small id="profileEmail"></small></div></div><div class="profile-details" id="profileDetails"></div><div class="avatar-editor"><label for="avatarFile">FOTO PROFILO</label><input id="avatarFile" type="file" accept="image/jpeg,image/png,image/webp" hidden><button id="avatarUploadBtn" class="auth-secondary" type="button">Carica / cambia avatar</button><small id="avatarUploadStatus">Carica una foto per farti riconoscere sulla mappa.</small></div><button id="profileLogout" class="auth-secondary">Esci dall’account</button></section>
   <section id="territoryPanel" class="side-panel territory-panel" hidden><div class="side-panel-head"><strong>IL TUO TERRITORIO</strong><button class="panel-close" data-close-panel aria-label="Chiudi">×</button></div><div id="territorySummary" class="territory-summary"></div><div class="territory-tabs" role="tablist"><button class="territory-tab active" data-tab="population">Popolazione</button><button class="territory-tab" data-tab="resources">Risorse</button><button class="territory-tab" data-tab="warehouse">Magazzino</button><button class="territory-tab" data-tab="create">Crea</button></div><div id="territoryTabContent" class="territory-tab-content"></div></section>
   <section class="territory-banner" id="territoryBanner">
@@ -41,8 +44,9 @@
     <p class="hint" id="hint">Attiva il GPS e inizia a camminare. La linea seguirà il tuo percorso.</p>
   </section>
   <button id="recenterBtn" class="recenter" aria-label="Centra sulla mia posizione" disabled>⌖</button>
-  <div class="map-legend"><span><i class="line-key"></i> Il tuo percorso</span><span><i class="area-key"></i> Territorio conquistato</span></div>
-  <div class="app-version" aria-label="Versione applicazione">TERRITORIALS <span>v2.3.0</span></div>
+  <div class="map-legend"><strong class="legend-heading"><span>✦</span> CAMPO DI GIOCO</strong><span><i class="line-key"></i> Il tuo percorso</span><span><i class="area-key"></i> Territorio conquistato</span><span><i class="rival-key"></i> Zone rivali</span></div>
+  <div class="map-mission" aria-hidden="true"><span class="mission-flag">⚑</span><span class="mission-copy"><small>OBIETTIVO DI GIOCO</small><strong>Allarga il confine!</strong><span>ESPLORA · CONQUISTA · RACCOGLI</span></span><span class="mission-stamp">GO!</span></div>
+  <div class="app-version" aria-label="Versione applicazione">TERRITORIALS <span>v2.4.0</span></div>
   <div class="toast" id="toast" role="status"></div>
 </main>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
