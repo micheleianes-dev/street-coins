@@ -18,3 +18,11 @@
 .player-dot:after{content:"";position:absolute;left:50%;top:50%;width:7px;height:7px;border-radius:50%;background:#fff;transform:translate(-50%,-50%)}
 .gps-pill.active{background:#174638;color:#c8ffeb}
 @media(min-width:700px){.gps-actions{flex-wrap:wrap}.gps-button{flex:0 0 100%}}
+
+/* V1.1.0 — simulazione di camminata in ambiente di test */
+.test-mode-pill{padding:7px 9px;border-radius:20px;background:#5a3c16;color:#ffd98b;font-size:9px;font-weight:900;letter-spacing:1px;white-space:nowrap;border:1px solid #ffd98b55}
+.test-mode-pill[hidden]{display:none}
+.player-marker-icon{cursor:grab!important}
+.leaflet-marker-draggable:active{cursor:grabbing!important}
+.gps-button[hidden],.gps-pill[hidden]{display:none!important}
+@media(max-width:420px){.topbar{gap:6px;padding:9px}.brand-copy small{font-size:7px}.gps-pill,.test-mode-pill{font-size:8px;padding:6px}}
