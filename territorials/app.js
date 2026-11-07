@@ -1,4 +1,4 @@
-/* TERRITORIALS — V2.0.0 colonia, popolazione e raccolta risorse */
+/* TERRITORIALS — V2.2.0 identità territoriale, colonia e risorse */
 let TEST_MODE=true;
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
@@ -225,8 +225,28 @@ function renderProfile(){
  $("profileDetails").innerHTML='<div><small>TIPO ACCOUNT</small><strong>'+(currentUser.is_anonymous?"Ospite":"Giocatore registrato")+'</strong></div><div><small>COLONIA</small><strong>'+colony.population+' abitanti</strong></div>';
  const upload=$("avatarUploadStatus");if(upload)upload.textContent=photo?"Immagine profilo impostata. Puoi sostituirla quando vuoi.":"Carica una foto per farti riconoscere sulla mappa.";
 }
+function renderTerritorySummary(){
+ const box=$("territorySummary"),z=savedTerritories.find(t=>t.owner_id===currentUser?.id);
+ if(!box)return;
+ if(!z){box.innerHTML='<div class="territory-summary-empty">Non hai ancora conquistato un territorio.</div>';return}
+ const pts=z.points||[],lat=pts.length?pts.reduce((s,p)=>s+Number(p.lat),0)/pts.length:0,lng=pts.length?pts.reduce((s,p)=>s+Number(p.lng),0)/pts.length:0;
+ const lats=pts.map(p=>Number(p.lat)),lngs=pts.map(p=>Number(p.lng));
+ const bounds=pts.length?((Math.max(...lats)-Math.min(...lats))*111320):0;
+ const width=pts.length?((Math.max(...lngs)-Math.min(...lngs))*111320*Math.cos(lat*Math.PI/180)):0;
+ const key="territory-location-"+z.id;
+ box.innerHTML='<div class="territory-summary-title"><span>📍 COLLOCAZIONE</span><strong>'+escHtml(z.territory_name||("Territorio di "+z.owner_name))+'</strong></div><div class="territory-location" id="'+key+'">Coordinate: '+lat.toFixed(5)+', '+lng.toFixed(5)+'</div><div class="territory-dimensions"><div><small>SUPERFICIE</small><strong>'+fmtArea(Number(z.area_m2)||0)+'</strong></div><div><small>PERIMETRO</small><strong>'+fmtDistance(Number(z.perimeter_m)||0)+'</strong></div><div><small>ESTENSIONE N-S</small><strong>'+fmtDistance(bounds)+'</strong></div><div><small>ESTENSIONE E-O</small><strong>'+fmtDistance(width)+'</strong></div></div>';
+ if(pts.length){
+  fetch("https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat="+encodeURIComponent(lat)+"&lon="+encodeURIComponent(lng)+"&zoom=14&addressdetails=1",{headers:{"Accept-Language":"it"}}).then(r=>r.ok?r.json():null).then(data=>{
+   const target=$(key);if(!target||!data?.address)return;
+   const a=data.address,place=a.village||a.town||a.city||a.hamlet||a.suburb||a.neighbourhood||a.municipality||a.county||"";
+   const region=a.state||a.region||"";
+   if(place)target.textContent=place+(region?", "+region:"")+" · "+lat.toFixed(5)+", "+lng.toFixed(5);
+  }).catch(()=>{});
+ }
+}
 function renderTerritoryTab(tab){
  const content=$("territoryTabContent");
+ renderTerritorySummary();
  document.querySelectorAll(".territory-tab").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));
  if(tab==="population"){
   content.innerHTML='<div class="tab-intro">Gestisci gli abitanti e assegna la forza lavoro alle risorse della tua zona.</div><div class="colony-title"><span>🏕️ POPOLAZIONE</span><strong><span id="colonyPopulation">1</span> abitanti</strong></div><div class="colony-inventory-title">ASSEGNAZIONE LAVORATORI</div><div id="colonyResources"></div><div class="colony-footer"><span>Forza lavoro libera</span><strong id="colonyUnassigned">1 non assegnato</strong></div><small class="colony-rate-note">1 lavoratore raccoglie 1 unità al minuto. La colonia lavora anche quando sei offline.</small>';
