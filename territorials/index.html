@@ -19,12 +19,14 @@
     <div class="brand-copy"><strong>TERRITORIALS</strong><small>IL MONDO È IL TUO CAMPO DI GIOCO</small></div>
     <div class="gps-pill" id="gpsPill"><i></i><span>GPS non attivo</span></div><div class="test-mode-pill" id="testModePill" hidden>MODALITÀ TEST</div><button id="modeToggleBtn" class="mode-toggle" type="button" aria-pressed="true">Passa a GPS</button>
   </header>
-  <aside id="colonyPanel" class="colony-panel" hidden><div class="colony-title"><span>🏕️ COLONIA</span><strong><span id="colonyPopulation">1</span> abitanti</strong></div><div class="colony-inventory-title">RACCOLTA RISORSE</div><div id="colonyResources"></div><div class="colony-footer"><span>Forza lavoro libera</span><strong id="colonyUnassigned">1 non assegnato</strong></div><small class="colony-rate-note">1 lavoratore raccoglie 1 unità al minuto. La colonia lavora anche quando sei offline.</small></aside>
+  <nav class="game-rail" aria-label="Menu di gioco"><button class="rail-button" id="profileNav" aria-label="Profilo" title="Profilo"><span>♙</span></button><button class="rail-button" id="exploreNav" aria-label="Crea la tua zona" title="Crea la tua zona"><span>⌖</span></button><button class="rail-button" id="territoryNav" aria-label="Il tuo territorio" title="Il tuo territorio"><span>▦</span></button></nav>
+  <section id="profilePanel" class="side-panel profile-panel" hidden><div class="side-panel-head"><strong>PROFILO GIOCATORE</strong><button class="panel-close" data-close-panel aria-label="Chiudi">×</button></div><div class="profile-summary"><div id="profileAvatar" class="profile-avatar">?</div><div><strong id="profileName">Giocatore</strong><small id="profileEmail"></small></div></div><div class="profile-details" id="profileDetails"></div><button id="profileLogout" class="auth-secondary">Esci dall’account</button></section>
+  <section id="territoryPanel" class="side-panel territory-panel" hidden><div class="side-panel-head"><strong>IL TUO TERRITORIO</strong><button class="panel-close" data-close-panel aria-label="Chiudi">×</button></div><div class="territory-tabs" role="tablist"><button class="territory-tab active" data-tab="population">Popolazione</button><button class="territory-tab" data-tab="resources">Risorse</button><button class="territory-tab" data-tab="warehouse">Magazzino</button><button class="territory-tab" data-tab="create">Crea</button></div><div id="territoryTabContent" class="territory-tab-content"></div></section>
   <section class="territory-banner" id="territoryBanner">
     <span class="banner-symbol">⌖</span>
     <div><small>TI TROVI IN</small><strong id="territoryName">Zona non rilevata</strong></div>
   </section>
-  <section class="draw-panel">
+  <section class="draw-panel" id="drawPanel" hidden>
     <div class="draw-heading"><div><small>LA TUA ESPLORAZIONE</small><strong id="drawState">Pronto a tracciare?</strong></div><span class="live-dot" id="liveDot"></span></div>
     <div class="stats">
       <div><small>DISTANZA</small><strong id="distanceValue">0 m</strong></div>
