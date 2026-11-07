@@ -10,7 +10,7 @@ const $=id=>document.getElementById(id);
 const drawnLayer=L.layerGroup().addTo(map);
 let watchId=null,gpsWatchdog=null,position=null,accuracy=999,track=[],trackLine=null,playerMarker=null,accuracyCircle=null,recording=false,totalDistance=0,toastTimer=null,hasInitialGpsView=false;
 const CLOSE_DISTANCE=24,MAX_TRACK_ACCURACY=60,MIN_POINTS=5,MIN_AREA=250;
-let savedTerritories=[],currentUser=null,playerName="";
+let savedTerritories=[],currentUser=null,playerName="",lastClosedResources=null;
 function distance(a,b){const r=Math.PI/180,R=6371000,dLat=(b.lat-a.lat)*r,dLon=(b.lng-a.lng)*r,x=Math.sin(dLat/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLon/2)**2;return 2*R*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))}
 function area(points){if(points.length<3)return 0;const lat0=points.reduce((s,p)=>s+p.lat,0)/points.length,scaleX=111320*Math.cos(lat0*Math.PI/180),scaleY=110540;let sum=0;for(let i=0;i<points.length;i++){const a=points[i],b=points[(i+1)%points.length];sum+=(a.lng*scaleX)*(b.lat*scaleY)-(b.lng*scaleX)*(a.lat*scaleY)}return Math.abs(sum/2)}
 function fmtArea(value){return value>=10000?(value/10000).toFixed(2)+" ha":Math.round(value)+" m²"}
@@ -32,7 +32,7 @@ function showAuth(message){$("authPanel").classList.remove("hidden");if(message)
 async function loadZones(){
  const {data,error}=await db.from("territorials_zones").select("*").order("created_at");
  if(error)throw error;
- drawnLayer.clearLayers();savedTerritories=(data||[]).map(z=>({...z,points:Array.isArray(z.points)?z.points:[]}));
+ drawnLayer.clearLayers();savedTerritories=(data||[]).map(z=>({...z,points:Array.isArray(z.points)?z.points:[],resources:z.resources||{status:"unknown",items:[]}}));
  savedTerritories.forEach(z=>{
   const poly=L.polygon(z.points,{color:z.owner_id===currentUser?.id?"#16bd91":"#6687e8",weight:3,fillColor:z.owner_id===currentUser?.id?"#25d6a6":"#8298f0",fillOpacity:.22}).addTo(drawnLayer);
   poly.bindTooltip("Zona di "+escHtml(z.owner_name),{sticky:true,direction:"top"});
@@ -78,6 +78,69 @@ async function enterAsGuest(){
   authMessage(message.includes("anonymous")||message.includes("disabled")?"Accesso ospite non attivo nel progetto Supabase. Abilita Authentication → Sign In / Providers → Anonymous e riprova.":(e.message||"Accesso ospite non riuscito."));
  }finally{$("authGuest").disabled=false}
 }
+
+const RESOURCE_TYPES={
+ forest:{label:"Legname e vegetazione",icon:"🌲"},
+ food:{label:"Cibo",icon:"🌾"},
+ materials:{label:"Materiali",icon:"🧱"},
+ water:{label:"Acqua",icon:"💧"}
+};
+function territoryFeature(points){
+ const ring=points.map(p=>[p.lng,p.lat]);if(ring.length<3)return null;
+ if(ring[0][0]!==ring[ring.length-1][0]||ring[0][1]!==ring[ring.length-1][1])ring.push(ring[0]);
+ return turf.polygon([ring]);
+}
+function resourceClass(tags){
+ if(tags.landuse==="forest")return "forest";
+ if(tags.landuse==="farmland"||tags.landuse==="meadow")return "food";
+ if(tags.natural==="water")return "water";
+ if(tags.building||tags.landuse==="industrial")return "materials";
+ return null;
+}
+async function calculateTerritoryResources(points){
+ const boundary=territoryFeature(points);if(!boundary||!window.turf)return {status:"unknown",items:[],message:"Analisi cartografica non disponibile."};
+ const poly=points.map(p=>p.lat+" "+p.lng).join(" ");
+ const query='[out:json][timeout:25];(way(poly:"'+poly+'")[landuse=forest];way(poly:"'+poly+'")[landuse=farmland];way(poly:"'+poly+'")[landuse=meadow];way(poly:"'+poly+'")[building];way(poly:"'+poly+'")[landuse=industrial];way(poly:"'+poly+'")[natural=water];);out body geom;';
+ const endpoints=["https://overpass-api.de/api/interpreter","https://overpass.kumi.systems/api/interpreter"];
+ let data=null,lastError=null;
+ for(const endpoint of endpoints){try{const response=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded;charset=UTF-8"},body:"data="+encodeURIComponent(query)});if(!response.ok)throw new Error("Overpass HTTP "+response.status);data=await response.json();break}catch(e){lastError=e}}
+ if(!data)return {status:"unknown",items:[],message:"Dati OpenStreetMap temporaneamente non raggiungibili."};
+ const groups={forest:[],food:[],materials:[],water:[]};
+ for(const element of (data.elements||[])){
+  if(element.type!=="way"||!Array.isArray(element.geometry)||element.geometry.length<4)continue;
+  const kind=resourceClass(element.tags||{});if(!kind)continue;
+  const coords=element.geometry.map(p=>[p.lon,p.lat]);
+  if(coords[0][0]!==coords[coords.length-1][0]||coords[0][1]!==coords[coords.length-1][1])coords.push(coords[0]);
+  try{
+   const feature=turf.polygon([coords]),clipped=turf.intersect(turf.featureCollection([feature,boundary]));
+   if(clipped&&turf.area(clipped)>1)groups[kind].push(clipped);
+  }catch(e){}
+ }
+ const items=[];
+ for(const [key,features] of Object.entries(groups)){
+  if(!features.length)continue;
+  let merged=features[0];
+  for(let i=1;i<features.length;i++){try{merged=turf.union(turf.featureCollection([merged,features[i]]))||merged}catch(e){}}
+  const m2=Math.min(turf.area(boundary),turf.area(merged));
+  if(m2>1)items.push({type:key,label:RESOURCE_TYPES[key].label,icon:RESOURCE_TYPES[key].icon,area_m2:Math.round(m2),share_pct:Math.round(m2/turf.area(boundary)*1000)/10});
+ }
+ return {status:"ok",items,source:"OpenStreetMap",analyzed_at:new Date().toISOString()};
+}
+function resourceMarkup(resources){
+ if(!resources||resources.status!=="ok")return '<p class="resource-empty">'+escHtml(resources?.message||"Nessuna informazione cartografica disponibile per questa zona.")+'</p>';
+ if(!resources.items?.length)return '<p class="resource-empty">Nessuna delle risorse mappate è stata rilevata in questa zona.</p>';
+ return resources.items.map(r=>'<div class="resource-row"><span class="resource-icon">'+r.icon+'</span><div class="resource-copy"><strong>'+escHtml(r.label)+'</strong><small>'+fmtArea(r.area_m2)+' di superficie · '+r.share_pct+'%</small><span class="resource-meter"><i style="width:'+Math.min(100,r.share_pct)+'%"></i></span></div></div>').join("");
+}
+function openResources(){
+ const own=savedTerritories.filter(z=>z.owner_id===currentUser?.id);
+ const totals={forest:0,food:0,materials:0,water:0};
+ let known=false;
+ own.forEach(z=>{if(z.resources?.status==="ok"){known=true;(z.resources.items||[]).forEach(r=>{if(totals[r.type]!==undefined)totals[r.type]+=Number(r.area_m2)||0})}});
+ $("resourcesIntro").textContent=own.length+" territori · superfici complessive rilevate";
+ $("resourcesList").innerHTML=known?Object.entries(totals).filter(([,v])=>v>0).map(([k,v])=>'<div class="resource-row"><span class="resource-icon">'+RESOURCE_TYPES[k].icon+'</span><div class="resource-copy"><strong>'+RESOURCE_TYPES[k].label+'</strong><small>'+fmtArea(v)+' complessivi</small></div></div>').join(""):'<p class="resource-empty">Non ci sono ancora dati sulle risorse. Chiudi un territorio per avviare l’analisi OpenStreetMap.</p>';
+ $("resourcesModal").classList.remove("hidden");
+}
+
 function perimeter(points){let total=0;for(let i=0;i<points.length;i++)total+=distance(points[i],points[(i+1)%points.length]);return total}
 function fmtDistance(v){return v>=1000?(v/1000).toFixed(2)+" km":Math.round(v)+" m"}
 function showZoneDetails(z,first){
@@ -88,11 +151,12 @@ function showZoneDetails(z,first){
  $("zoneDistance").textContent=fmtDistance(Number(z.distance_m));
  $("zonePoints").textContent=z.points.length;
  $("zoneDate").textContent="Conquistata il "+new Date(z.created_at).toLocaleString("it-IT");
+ $("zoneResources").innerHTML="<h3>Risorse di questo territorio</h3>"+resourceMarkup(z.resources);
  $("zoneModal").classList.remove("hidden");
 }
 async function saveClosedZone(points,m2,walked){
  if(!currentUser){showAuth("Accedi o registrati per salvare la tua zona.");return null}
- const name=playerName||displayName(currentUser),row={owner_id:currentUser.id,owner_name:name,points:points.map(p=>({lat:p.lat,lng:p.lng})),area_m2:Math.round(m2),perimeter_m:Math.round(perimeter(points)),distance_m:Math.round(walked)};
+ const name=playerName||displayName(currentUser),resources=await calculateTerritoryResources(points),row={owner_id:currentUser.id,owner_name:name,points:points.map(p=>({lat:p.lat,lng:p.lng})),area_m2:Math.round(m2),perimeter_m:Math.round(perimeter(points)),distance_m:Math.round(walked),resources};
  const {data,error}=await db.from("territorials_zones").insert(row).select("*").single();
  if(error)throw error;
  savedTerritories.push(data);return data;
@@ -167,7 +231,7 @@ async function tryCloseLoop(current){
 function stopTracking(completed){recording=false;$("startBtn").disabled=false;$("startBtn").textContent="Inizia a tracciare";$("cancelBtn").disabled=true;$("liveDot").classList.remove("active");if(!completed){if(trackLine)map.removeLayer(trackLine);trackLine=null;track=[];totalDistance=0;updateStats();$("drawState").textContent="Tracciamento annullato";$("hint").textContent="Quando vuoi, puoi iniziare un nuovo percorso."}}
 function cancelTracking(){if(!recording)return;stopTracking(false);$("territoryName").textContent="Zona libera";showToast("Tracciamento annullato")}
 $("authSignup").addEventListener("click",registerPlayer);$("authLogin").addEventListener("click",loginPlayer);$("authGuest").addEventListener("click",enterAsGuest);
-$("zoneClose").onclick=()=>$("zoneModal").classList.add("hidden");$("zoneOk").onclick=()=>$("zoneModal").classList.add("hidden");
+$("zoneClose").onclick=()=>$("zoneModal").classList.add("hidden");$("zoneOk").onclick=()=>$("zoneModal").classList.add("hidden");$("resourcesClose").onclick=()=>$("resourcesModal").classList.add("hidden");$("resourcesOk").onclick=()=>$("resourcesModal").classList.add("hidden");$("resourcesBtn").onclick=openResources;$("zoneResourcesBtn").onclick=()=>{$("zoneModal").classList.add("hidden");openResources()};
 db.auth.onAuthStateChange(()=>setTimeout(()=>refreshSession().catch(e=>authMessage(e.message)),0));
 $("locateBtn").addEventListener("click",startGpsWatch);$("startBtn").addEventListener("click",startTracking);$("cancelBtn").addEventListener("click",cancelTracking);
 $("recenterBtn").addEventListener("click",()=>{if(position){map.setView([position.lat,position.lng],17,{animate:false});if(playerMarker)playerMarker.setLatLng([position.lat,position.lng])}else{showToast("Attiva prima il GPS.");startGpsWatch()}});
