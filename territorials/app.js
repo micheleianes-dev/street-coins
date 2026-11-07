@@ -242,8 +242,7 @@ function renderProfileTab(tab){
   $("profileDetails").innerHTML='<div><small>TIPO ACCOUNT</small><strong>'+(currentUser.is_anonymous?"Ospite":"Giocatore registrato")+'</strong></div><div><small>COLONIA</small><strong>'+colony.population+' abitanti</strong></div><div><small>CAMMINATA</small><strong>'+fmtDistance(walkedMeters)+'</strong></div>';
   const upload=$("avatarUploadStatus");if(upload)upload.textContent=photo?"Immagine profilo impostata. Puoi sostituirla quando vuoi.":"Carica una foto per farti riconoscere sulla mappa.";
   $("avatarUploadBtn").addEventListener("click",()=>$("avatarFile").click());$("avatarFile").addEventListener("change",uploadProfileAvatar);
-  $("profileLogout").addEventListener("click",async()=>{const {error}=await db.auth.signOut();if(error)showToast(error.message);else{closeSidePanels();await refreshSession()}});
- }
+   }
 }
 async function savePlayerProgress(){
  if(!currentUser||walkingSaving)return;
