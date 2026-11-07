@@ -3,7 +3,6 @@ const TEST_MODE=true;
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
-const TEST_MODE=new URLSearchParams(location.search).get("test")==="1";
 const map=L.map("map",{zoomControl:false,preferCanvas:true,minZoom:14,maxZoom:17,zoomSnap:1,zoomDelta:1}).setView([46.0679,11.1211],17);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);
 L.control.zoom({position:"bottomright"}).addTo(map);
@@ -63,6 +62,22 @@ async function loginPlayer(){
  try{const {data,error}=await db.auth.signInWithPassword({email,password});if(error)throw error;currentUser=data.user;playerName=displayName(data.user);$("authPanel").classList.add("hidden");await loadZones();showToast("Bentornato, "+playerName)}
  catch(e){authMessage(e.message||"Accesso non riuscito.")}finally{$("authLogin").disabled=false}
 }
+async function enterAsGuest(){
+ $("authGuest").disabled=true;
+ try{
+  const {data,error}=await db.auth.signInAnonymously();
+  if(error)throw error;
+  currentUser=data.user;
+  const {data:updated,error:updateError}=await db.auth.updateUser({data:{display_name:"Giocatore Test",full_name:"Giocatore Test"}});
+  if(updateError)throw updateError;
+  currentUser=updated.user||data.user;playerName="Giocatore Test";
+  $("authPanel").classList.add("hidden");await loadZones();
+  showToast("Sei entrato come Giocatore Test");
+ }catch(e){
+  const message=String(e.message||"").toLowerCase();
+  authMessage(message.includes("anonymous")||message.includes("disabled")?"Accesso ospite non attivo nel progetto Supabase. Abilita Authentication → Sign In / Providers → Anonymous e riprova.":(e.message||"Accesso ospite non riuscito."));
+ }finally{$("authGuest").disabled=false}
+}
 function perimeter(points){let total=0;for(let i=0;i<points.length;i++)total+=distance(points[i],points[(i+1)%points.length]);return total}
 function fmtDistance(v){return v>=1000?(v/1000).toFixed(2)+" km":Math.round(v)+" m"}
 function showZoneDetails(z,first){
@@ -95,7 +110,13 @@ function applyMovementPoint(p){
   if(track.length===0){track.push(p);trackLine.addLatLng(p)}
   else{const last=track[track.length-1],d=distance(last,p);if(d>=4){track.push(p);totalDistance+=d;trackLine.addLatLng(p)}}
   updateStats();
-if(TEST_MODE){$("testModePill").hidden=false;$("gpsPill").hidden=true;$("locateBtn").hidden=true;$("drawState").textContent="Modalità test pronta";$("hint").textContent="Trascina il segnalino verde sulla mappa per simulare una camminata. Attiva il tracciamento per disegnare un territorio.";const initial=map.getCenter();position={lat:initial.lat,lng:initial.lng};accuracy=5;updatePlayerMarker(initial);updateAccuracyCircle(initial);$("recenterBtn").disabled=false;updatePositionBanner();}
+if(TEST_MODE){
+ $("testModePill").hidden=false;$("gpsPill").hidden=true;$("locateBtn").hidden=true;
+ $("drawState").textContent="Modalità test pronta";
+ $("hint").textContent="Trascina il segnalino verde sulla mappa per simulare una camminata. Premi «Inizia a tracciare» per disegnare un territorio.";
+ const initial=map.getCenter();position={lat:initial.lat,lng:initial.lng};accuracy=5;
+ updatePlayerMarker(initial);updateAccuracyCircle(initial);$("recenterBtn").disabled=false;updatePositionBanner();
+}
 tryCloseLoop(p);
  }
 }
@@ -152,7 +173,7 @@ async function tryCloseLoop(current){
 }
 function stopTracking(completed){recording=false;$("startBtn").disabled=false;$("startBtn").textContent="Inizia a tracciare";$("cancelBtn").disabled=true;$("liveDot").classList.remove("active");if(!completed){if(trackLine)map.removeLayer(trackLine);trackLine=null;track=[];totalDistance=0;updateStats();$("drawState").textContent="Tracciamento annullato";$("hint").textContent="Quando vuoi, puoi iniziare un nuovo percorso."}}
 function cancelTracking(){if(!recording)return;stopTracking(false);$("territoryName").textContent="Zona libera";showToast("Tracciamento annullato")}
-$("authSignup").addEventListener("click",registerPlayer);$("authLogin").addEventListener("click",loginPlayer);
+$("authSignup").addEventListener("click",registerPlayer);$("authLogin").addEventListener("click",loginPlayer);$("authGuest").addEventListener("click",enterAsGuest);
 $("zoneClose").onclick=()=>$("zoneModal").classList.add("hidden");$("zoneOk").onclick=()=>$("zoneModal").classList.add("hidden");
 db.auth.onAuthStateChange(()=>setTimeout(()=>refreshSession().catch(e=>authMessage(e.message)),0));
 $("locateBtn").addEventListener("click",startGpsWatch);$("startBtn").addEventListener("click",startTracking);$("cancelBtn").addEventListener("click",cancelTracking);
