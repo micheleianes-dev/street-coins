@@ -76,3 +76,19 @@
 .mode-toggle{padding:8px 10px;border:1px solid #4ce0b566;border-radius:10px;background:#1b3b3b;color:#8ff5d6;font-size:10px;font-weight:850;white-space:nowrap;cursor:pointer}
 .mode-toggle[aria-pressed="true"]{background:#5a3c16;border-color:#ffd98b66;color:#ffd98b}
 @media(max-width:520px){.topbar{flex-wrap:wrap}.brand-copy{min-width:110px}.mode-toggle{margin-left:auto}}
+
+/* V2.0.0 — pannello colonia e assegnazione lavoratori */
+.colony-panel{position:absolute;z-index:480;top:205px;right:12px;width:min(300px,calc(100% - 24px));max-height:42vh;overflow:auto;padding:13px;border:1px solid #ffffff2b;border-radius:15px;background:#101b2af0;box-shadow:0 8px 28px #07101c55;backdrop-filter:blur(12px);color:#f4f7fb}
+.colony-panel[hidden]{display:none}
+.colony-title,.colony-resource-head,.colony-resource-sub,.colony-footer{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.colony-title{font-size:12px;font-weight:900;letter-spacing:.6px}.colony-title strong{color:#4ce0b5;font-size:12px}
+.colony-inventory-title{margin:12px 0 7px;color:#91a7b8;font-size:9px;font-weight:900;letter-spacing:1.2px}
+.colony-resource{padding:9px 0;border-top:1px solid #ffffff18}
+.colony-resource-head{font-size:11px;font-weight:800}.colony-resource-head strong{color:#8ff5d6;font-size:12px;font-variant-numeric:tabular-nums}
+.colony-resource-sub{margin-top:3px;color:#9db0bf;font-size:9px}
+.colony-worker-controls{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:6px}
+.colony-worker-controls button{width:27px;height:25px;border:1px solid #ffffff28;border-radius:7px;background:#293b4d;color:#fff;font-size:17px;font-weight:800;cursor:pointer}
+.colony-worker-controls span{min-width:12px;text-align:center;font-size:11px;font-weight:900}
+.colony-footer{padding-top:9px;border-top:1px solid #ffffff22;color:#9db0bf;font-size:10px}.colony-footer strong{color:#ffd98b}
+.colony-rate-note,.colony-note{display:block;margin:9px 0 0;color:#91a7b8;font-size:9px;line-height:1.4}.colony-note{padding:8px;border-radius:8px;background:#1b2b3b;font-size:10px}
+@media(max-width:520px){.colony-panel{top:194px;right:9px;width:min(265px,calc(100% - 18px));max-height:34vh;padding:10px}.colony-title{font-size:10px}}
