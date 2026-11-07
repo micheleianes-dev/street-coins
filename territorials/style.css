@@ -92,3 +92,38 @@
 .colony-footer{padding-top:9px;border-top:1px solid #ffffff22;color:#9db0bf;font-size:10px}.colony-footer strong{color:#ffd98b}
 .colony-rate-note,.colony-note{display:block;margin:9px 0 0;color:#91a7b8;font-size:9px;line-height:1.4}.colony-note{padding:8px;border-radius:8px;background:#1b2b3b;font-size:10px}
 @media(max-width:520px){.colony-panel{top:194px;right:9px;width:min(265px,calc(100% - 18px));max-height:34vh;padding:10px}.colony-title{font-size:10px}}
+
+/* V2.1.0 — navigazione compatta a pannelli laterali */
+.game-rail{position:absolute;z-index:700;left:10px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:10px;padding:7px;border:1px solid #ffffff24;border-radius:17px;background:#101b2aef;box-shadow:0 8px 25px #07101c55;backdrop-filter:blur(12px)}
+.rail-button{width:46px;height:46px;border:1px solid #ffffff20;border-radius:13px;background:#263b4d;color:#d9e8f1;font-size:24px;cursor:pointer}
+.rail-button.active{border-color:#4ce0b5;background:#174638;color:#75f2cf;box-shadow:0 0 0 2px #4ce0b522}
+.side-panel{position:absolute;z-index:650;left:72px;top:50%;transform:translateY(-50%);width:min(360px,calc(100% - 90px));max-height:min(78vh,680px);overflow:auto;padding:15px;border:1px solid #ffffff28;border-radius:18px;background:#101b2af2;box-shadow:0 14px 38px #07101c66;backdrop-filter:blur(14px)}
+.side-panel[hidden]{display:none}
+.side-panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:13px;color:#eaf4f8;font-size:12px;letter-spacing:1.1px}
+.panel-close{width:30px;height:30px;border:0;border-radius:9px;background:#293b4d;color:#dce7ef;font-size:21px;cursor:pointer}
+.profile-summary{display:flex;align-items:center;gap:13px;padding:14px 0;border-bottom:1px solid #ffffff1b}
+.profile-avatar{width:58px;height:58px;flex:0 0 58px;display:grid;place-items:center;overflow:hidden;border-radius:50%;background:linear-gradient(145deg,#42e2b8,#1a9d89);color:#09251f;font-size:22px;font-weight:900}
+.profile-avatar img{width:100%;height:100%;object-fit:cover}
+.profile-summary>div:last-child{display:flex;flex-direction:column;gap:5px;min-width:0}.profile-summary strong{font-size:16px}.profile-summary small{color:#9db0bf;font-size:11px;overflow-wrap:anywhere}
+.profile-details{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:14px 0}
+.profile-details div{display:flex;flex-direction:column;gap:5px;padding:11px;border-radius:11px;background:#1b2b3b}.profile-details small{color:#91a7b8;font-size:9px;letter-spacing:1px}.profile-details strong{font-size:12px}
+.territory-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:13px}
+.territory-tab{min-height:36px;padding:5px 3px;border:1px solid #ffffff1b;border-radius:9px;background:#1b2b3b;color:#b9c9d5;font-size:10px;font-weight:800;cursor:pointer}
+.territory-tab.active{border-color:#4ce0b5;background:#174638;color:#8ff5d6}
+.territory-tab-content{min-height:110px}
+.tab-intro{margin:0 0 12px;color:#9db0bf;font-size:11px;line-height:1.45}
+.warehouse-amount{color:#8ff5d6;font-size:13px;font-variant-numeric:tabular-nums}
+.create-placeholder{padding:25px 12px;text-align:center;border:1px dashed #ffffff2b;border-radius:13px;background:#1b2b3b}
+.create-placeholder>div{font-size:32px}.create-placeholder strong{display:block;margin:9px 0;color:#8ff5d6;font-size:14px}.create-placeholder p{color:#a8bac8;font-size:11px;line-height:1.5}.create-placeholder small{color:#ffd98b;font-size:9px;text-transform:uppercase;letter-spacing:1px}
+.draw-panel[hidden]{display:none}
+@media(max-width:600px){
+ .topbar{display:none}
+ .game-rail{left:8px;top:50%;gap:8px;padding:6px}
+ .rail-button{width:43px;height:43px;font-size:22px}
+ .side-panel{left:62px;width:calc(100% - 72px);max-height:72vh;padding:12px}
+ .draw-panel{left:62px;right:10px;bottom:max(12px,env(safe-area-inset-bottom));max-height:68vh;overflow:auto;padding:13px}
+ .territory-banner{top:12px;left:62px;right:10px}
+ .map-legend{top:74px;left:62px}
+ .recenter{right:12px;bottom:90px}
+ .app-version{left:62px}
+}
