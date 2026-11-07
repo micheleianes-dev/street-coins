@@ -127,3 +127,23 @@
  .recenter{right:12px;bottom:90px}
  .app-version{left:62px}
 }
+
+/* V2.2.0 — identità visiva dei territori e avatar */
+.territory-glow{filter:drop-shadow(0 0 7px #27dcb899);animation:territoryPulse 3.8s ease-in-out infinite}
+@keyframes territoryPulse{0%,100%{fill-opacity:.14;stroke-opacity:.88}50%{fill-opacity:.28;stroke-opacity:1}}
+.territory-label-wrap{background:transparent!important;border:0!important}
+.territory-map-label{display:flex;align-items:center;gap:8px;width:210px;min-height:44px;padding:5px 10px 5px 5px;border:1px solid #ffffff65;border-radius:25px;background:linear-gradient(110deg,#101b2af2,#182d3df0);box-shadow:0 0 0 2px #16d6ad25,0 5px 18px #06111c80;backdrop-filter:blur(8px);color:#f5fbff;white-space:nowrap;animation:labelFloat 4.5s ease-in-out infinite}
+.territory-map-label>img,.territory-map-label>span:first-child{width:32px;height:32px;flex:0 0 32px;border:2px solid #70f0d0;border-radius:50%;object-fit:cover}
+.territory-map-label>span:first-child{display:grid;place-items:center;background:#1b6758;color:#d9fff4;font-size:11px;font-weight:900}
+.territory-label-copy{display:flex;min-width:0;flex-direction:column;gap:2px;overflow:hidden}
+.territory-label-copy strong{overflow:hidden;text-overflow:ellipsis;font-size:11px;font-weight:900}
+.territory-label-copy small{overflow:hidden;text-overflow:ellipsis;color:#9db8c6;font-size:9px}
+@keyframes labelFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+.avatar-editor{display:flex;flex-direction:column;gap:7px;margin:13px 0;padding:12px;border:1px solid #ffffff1b;border-radius:12px;background:#1b2b3b}
+.avatar-editor label,.territory-name-editor label{color:#91a7b8;font-size:9px;font-weight:900;letter-spacing:1px}
+.avatar-editor small{color:#9db0bf;font-size:10px;line-height:1.4}.avatar-editor .auth-secondary{margin:0}
+.territory-name-editor{margin:12px 0;padding:12px;border:1px solid #ffffff20;border-radius:12px;background:#1b2b3b;text-align:left}
+.territory-name-editor>div{display:flex;gap:7px;margin-top:7px}
+.territory-name-editor input{flex:1;min-width:0;padding:10px;border:1px solid #ffffff28;border-radius:9px;background:#101b2a;color:#fff;font-size:12px}
+.territory-name-editor button{padding:0 12px;border:0;border-radius:9px;background:#32cda8;color:#09251f;font-size:11px;font-weight:900}
+.territory-name-editor button:disabled,.avatar-editor button:disabled{opacity:.5}
