@@ -146,9 +146,8 @@ function colonyResourceTypes(){
 }
 function colonyTotalsAssigned(){return colonyResourceTypes().reduce((s,type)=>s+(Number(colony.assignments?.[type])||0),0)}
 function renderColony(){
- const panel=$("colonyPanel");if(!panel)return;
- panel.hidden=!currentUser||!colonyLoaded;
- $("colonyPopulation").textContent=String(colony.population);
+ const panel=$("colonyResources");if(!panel)return;
+ const pop=$("colonyPopulation");if(pop)pop.textContent=String(colony.population);
  const types=colonyResourceTypes(),own=savedTerritories.find(z=>z.owner_id===currentUser?.id);
  let html="";
  if(own?.resources?.status==="pending")html='<p class="colony-note">Analisi delle risorse in corso…</p>';
@@ -158,8 +157,8 @@ function renderColony(){
   return '<div class="colony-resource"><div class="colony-resource-head"><span>'+RESOURCE_TYPES[type].icon+' '+RESOURCE_TYPES[type].label+'</span><strong>'+amount.toFixed(2)+'</strong></div><div class="colony-resource-sub"><span>'+workers+' lavoratori</span><span>+'+rate.toFixed(0)+'/min</span></div><div class="colony-worker-controls"><button type="button" data-resource="'+type+'" data-delta="-1" aria-label="Rimuovi un lavoratore">−</button><span>'+workers+'</span><button type="button" data-resource="'+type+'" data-delta="1" aria-label="Aggiungi un lavoratore">+</button></div></div>';
  }).join("");
  $("colonyResources").innerHTML=html;
- const unassigned=colony.population-colonyTotalsAssigned();
- $("colonyUnassigned").textContent=unassigned+" non assegnati";
+ const unassigned=colony.population-colonyTotalsAssigned(),free=$("colonyUnassigned");
+ if(free)free.textContent=unassigned+" non assegnati";
  $("colonyResources").querySelectorAll("button[data-resource]").forEach(btn=>btn.addEventListener("click",()=>changeWorkerAssignment(btn.dataset.resource,Number(btn.dataset.delta))));
 }
 async function persistColony(){
@@ -212,6 +211,31 @@ function resourceMarkup(resources){
  if(!resources||resources.status!=="ok")return '<p class="resource-empty">'+escHtml(resources?.message||"Nessuna informazione cartografica disponibile per questa zona.")+'</p>';
  if(!resources.items?.length)return '<p class="resource-empty">Nessuna delle risorse mappate è stata rilevata in questa zona.</p>';
  return resources.items.map(r=>'<div class="resource-row"><span class="resource-icon">'+r.icon+'</span><div class="resource-copy"><strong>'+escHtml(r.label)+'</strong><small>'+fmtArea(r.area_m2)+' di superficie · '+r.share_pct+'%</small><span class="resource-meter"><i style="width:'+Math.min(100,r.share_pct)+'%"></i></span></div></div>').join("");
+}
+function profileInitials(name){return String(name||"G").trim().split(/\\s+/).slice(0,2).map(s=>s[0]||"").join("").toUpperCase()}
+function renderProfile(){
+ if(!currentUser)return;
+ const meta=currentUser.user_metadata||{},name=playerName||displayName(currentUser),photo=meta.avatar_url||meta.picture||meta.photo_url||"";
+ $("profileName").textContent=name;
+ $("profileEmail").textContent=currentUser.email||"Account ospite";
+ $("profileAvatar").innerHTML=photo?'<img src="'+escHtml(photo)+'" alt="Foto profilo">':escHtml(profileInitials(name));
+ $("profileDetails").innerHTML='<div><small>TIPO ACCOUNT</small><strong>'+(currentUser.is_anonymous?"Ospite":"Giocatore registrato")+'</strong></div><div><small>COLONIA</small><strong>'+colony.population+' abitanti</strong></div>';
+}
+function renderTerritoryTab(tab){
+ const content=$("territoryTabContent");
+ document.querySelectorAll(".territory-tab").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));
+ if(tab==="population"){
+  content.innerHTML='<div class="tab-intro">Gestisci gli abitanti e assegna la forza lavoro alle risorse della tua zona.</div><div class="colony-title"><span>🏕️ POPOLAZIONE</span><strong><span id="colonyPopulation">1</span> abitanti</strong></div><div class="colony-inventory-title">ASSEGNAZIONE LAVORATORI</div><div id="colonyResources"></div><div class="colony-footer"><span>Forza lavoro libera</span><strong id="colonyUnassigned">1 non assegnato</strong></div><small class="colony-rate-note">1 lavoratore raccoglie 1 unità al minuto. La colonia lavora anche quando sei offline.</small>';
+  renderColony();
+ }else if(tab==="resources"){
+  const own=savedTerritories.find(z=>z.owner_id===currentUser?.id),resources=own?.resources;
+  content.innerHTML='<div class="tab-intro">Risorse naturali individuate all’interno del tuo territorio.</div>'+(resources?.status==="pending"?'<p class="resource-empty">Analisi delle risorse in corso…</p>':resourceMarkup(resources));
+ }else if(tab==="warehouse"){
+  const types=["forest","food","materials","water"];
+  content.innerHTML='<div class="tab-intro">Materiali raccolti dalla colonia e disponibili per le attività future.</div>'+types.map(type=>'<div class="resource-row"><span class="resource-icon">'+RESOURCE_TYPES[type].icon+'</span><div class="resource-copy"><strong>'+RESOURCE_TYPES[type].label+'</strong><small>Disponibili in magazzino</small></div><strong class="warehouse-amount">'+(Number(colony.inventory[type])||0).toFixed(2)+'</strong></div>').join("");
+ }else{
+  content.innerHTML='<div class="create-placeholder"><div>⚒</div><strong>Costruisci la tua colonia</strong><p>Qui potrai utilizzare le risorse del magazzino per costruire edifici, strutture e miglioramenti.</p><small>Sezione in preparazione</small></div>';
+ }
 }
 function openResources(){
  const own=savedTerritories.filter(z=>z.owner_id===currentUser?.id);
@@ -356,8 +380,20 @@ async function deleteOwnTerritory(){
  }catch(e){showToast("Errore durante l’eliminazione: "+(e.message||"riprova."))}
  finally{btn.disabled=false;updateTerritoryControls()}
 }
-$("deleteZoneBtn").addEventListener("click",deleteOwnTerritory);$("authSignup").addEventListener("click",registerPlayer);$("authLogin").addEventListener("click",loginPlayer);$("authGuest").addEventListener("click",enterAsGuest);
-$("zoneClose").onclick=()=>$("zoneModal").classList.add("hidden");$("zoneOk").onclick=()=>$("zoneModal").classList.add("hidden");$("resourcesClose").onclick=()=>$("resourcesModal").classList.add("hidden");$("resourcesOk").onclick=()=>$("resourcesModal").classList.add("hidden");$("resourcesBtn").onclick=openResources;$("zoneResourcesBtn").onclick=()=>{$("zoneModal").classList.add("hidden");openResources()};
+$("deleteZoneBtn").addEventListener("click",deleteOwnTerritory);
+function closeSidePanels(){["profilePanel","territoryPanel","drawPanel"].forEach(id=>$(id).hidden=true);document.querySelectorAll(".rail-button").forEach(b=>b.classList.remove("active"))}
+function toggleSidePanel(id,button){
+ const wasOpen=!$(id).hidden;closeSidePanels();
+ if(!wasOpen){$(id).hidden=false;button.classList.add("active");}
+}
+$("profileNav").addEventListener("click",()=>{toggleSidePanel("profilePanel",$("profileNav"));if(!$("profilePanel").hidden)renderProfile()});
+$("exploreNav").addEventListener("click",()=>toggleSidePanel("drawPanel",$("exploreNav")));
+$("territoryNav").addEventListener("click",()=>{toggleSidePanel("territoryPanel",$("territoryNav"));if(!$("territoryPanel").hidden)renderTerritoryTab("population")});
+document.querySelectorAll("[data-close-panel]").forEach(b=>b.addEventListener("click",closeSidePanels));
+document.querySelectorAll(".territory-tab").forEach(b=>b.addEventListener("click",()=>renderTerritoryTab(b.dataset.tab)));
+$("profileLogout").addEventListener("click",async()=>{const {error}=await db.auth.signOut();if(error)showToast(error.message);else{closeSidePanels();await refreshSession()}});
+$("authSignup").addEventListener("click",registerPlayer);$("authLogin").addEventListener("click",loginPlayer);$("authGuest").addEventListener("click",enterAsGuest);
+$("zoneClose").onclick=()=>$("zoneModal").classList.add("hidden");$("zoneOk").onclick=()=>$("zoneModal").classList.add("hidden");$("resourcesClose").onclick=()=>$("resourcesModal").classList.add("hidden");$("resourcesOk").onclick=()=>$("resourcesModal").classList.add("hidden");$("resourcesBtn").onclick=()=>{openResources();closeSidePanels();};$("zoneResourcesBtn").onclick=()=>{$("zoneModal").classList.add("hidden");openResources()};
 db.auth.onAuthStateChange(()=>setTimeout(()=>refreshSession().catch(e=>authMessage(e.message)),0));
 $("locateBtn").addEventListener("click",startGpsWatch);$("startBtn").addEventListener("click",startTracking);$("cancelBtn").addEventListener("click",cancelTracking);
 $("recenterBtn").addEventListener("click",()=>{if(position){map.setView([position.lat,position.lng],17,{animate:false});if(playerMarker)playerMarker.setLatLng([position.lat,position.lng])}else{showToast("Attiva prima il GPS.");startGpsWatch()}});
