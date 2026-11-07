@@ -94,10 +94,10 @@
 @media(max-width:520px){.colony-panel{top:194px;right:9px;width:min(265px,calc(100% - 18px));max-height:34vh;padding:10px}.colony-title{font-size:10px}}
 
 /* V2.1.0 — navigazione compatta a pannelli laterali */
-.game-rail{position:absolute;z-index:700;left:10px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:10px;padding:7px;border:1px solid #ffffff24;border-radius:17px;background:#101b2aef;box-shadow:0 8px 25px #07101c55;backdrop-filter:blur(12px)}
+.game-rail{position:absolute;z-index:700;right:10px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:10px;padding:7px;border:1px solid #ffffff24;border-radius:17px;background:#101b2aef;box-shadow:0 8px 25px #07101c55;backdrop-filter:blur(12px)}
 .rail-button{width:46px;height:46px;border:1px solid #ffffff20;border-radius:13px;background:#263b4d;color:#d9e8f1;font-size:24px;cursor:pointer}
 .rail-button.active{border-color:#4ce0b5;background:#174638;color:#75f2cf;box-shadow:0 0 0 2px #4ce0b522}
-.side-panel{position:absolute;z-index:650;left:72px;top:50%;transform:translateY(-50%);width:min(360px,calc(100% - 90px));max-height:min(78vh,680px);overflow:auto;padding:15px;border:1px solid #ffffff28;border-radius:18px;background:#101b2af2;box-shadow:0 14px 38px #07101c66;backdrop-filter:blur(14px)}
+.side-panel{position:absolute;z-index:650;right:72px;top:50%;transform:translateY(-50%);width:min(360px,calc(100% - 90px));max-height:min(78vh,680px);overflow:auto;padding:15px;border:1px solid #ffffff28;border-radius:18px;background:#101b2af2;box-shadow:0 14px 38px #07101c66;backdrop-filter:blur(14px)}
 .side-panel[hidden]{display:none}
 .side-panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:13px;color:#eaf4f8;font-size:12px;letter-spacing:1.1px}
 .panel-close{width:30px;height:30px;border:0;border-radius:9px;background:#293b4d;color:#dce7ef;font-size:21px;cursor:pointer}
@@ -118,14 +118,14 @@
 .draw-panel[hidden]{display:none}
 @media(max-width:600px){
  .topbar{display:none}
- .game-rail{left:8px;top:50%;gap:8px;padding:6px}
+ .game-rail{right:8px;top:50%;gap:8px;padding:6px}
  .rail-button{width:43px;height:43px;font-size:22px}
- .side-panel{left:62px;width:calc(100% - 72px);max-height:72vh;padding:12px}
- .draw-panel{left:62px;right:10px;bottom:max(12px,env(safe-area-inset-bottom));max-height:68vh;overflow:auto;padding:13px}
- .territory-banner{top:12px;left:62px;right:10px}
- .map-legend{top:74px;left:62px}
+ .side-panel{right:62px;width:calc(100% - 72px);max-height:72vh;padding:12px}
+ .draw-panel{left:10px;right:62px;bottom:max(12px,env(safe-area-inset-bottom));max-height:68vh;overflow:auto;padding:13px}
+ .territory-banner{top:12px;left:10px;right:62px}
+ .map-legend{top:74px;left:10px}
  .recenter{right:12px;bottom:90px}
- .app-version{left:62px}
+ .app-version{left:10px}
 }
 
 /* V2.2.0 — identità visiva dei territori e avatar */
@@ -147,3 +147,16 @@
 .territory-name-editor input{flex:1;min-width:0;padding:10px;border:1px solid #ffffff28;border-radius:9px;background:#101b2a;color:#fff;font-size:12px}
 .territory-name-editor button{padding:0 12px;border:0;border-radius:9px;background:#32cda8;color:#09251f;font-size:11px;font-weight:900}
 .territory-name-editor button:disabled,.avatar-editor button:disabled{opacity:.5}
+
+/* V2.2.1 — navigazione a destra e scheda dati territoriali */
+.territory-summary{margin:0 0 13px;padding:12px;border:1px solid #4ce0b544;border-radius:13px;background:linear-gradient(145deg,#173b3a,#1b2b3b)}
+.territory-summary-title{display:flex;flex-direction:column;gap:5px}
+.territory-summary-title>span{color:#8ff5d6;font-size:9px;font-weight:900;letter-spacing:1.1px}
+.territory-summary-title>strong{font-size:14px;color:#f4fbff}
+.territory-location{margin:8px 0 10px;color:#b8cbd5;font-size:10px;line-height:1.45}
+.territory-dimensions{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.territory-dimensions>div{display:flex;flex-direction:column;gap:4px;padding:8px;border-radius:9px;background:#101b2a88}
+.territory-dimensions small{color:#91a7b8;font-size:8px;letter-spacing:.8px}
+.territory-dimensions strong{color:#8ff5d6;font-size:12px;font-variant-numeric:tabular-nums}
+.territory-summary-empty{padding:12px;border:1px dashed #ffffff2b;border-radius:10px;color:#a8bac8;font-size:11px;line-height:1.4}
+@media(max-width:600px){.app-version{right:62px;left:auto}}
