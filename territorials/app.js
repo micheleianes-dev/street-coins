@@ -1,4 +1,4 @@
-/* TERRITORIALS — V2.4.0 identità di conquista, colonia e risorse */
+/* TERRITORIALS — V2.4.1 notifiche profilo e lavoratori */
 let TEST_MODE=false;
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
@@ -14,6 +14,7 @@ let savedTerritories=[],currentUser=null,playerName="",lastClosedResources=null,
 let colony={population:1,assignments:{},inventory:{},last_tick:new Date().toISOString()},colonyLoaded=false,colonySaving=false,colonyLastTick=Date.now();
 let walkedMeters=0,walkPreviousPosition=null,walkPreviousAt=0,walkPersistedAt=0,walkingSaving=false;
 let playerAchievements={first_kingdom:false,walk_one_km:false};
+let pendingAchievementNotices=[],lastAnnouncedUnemployed=-1;
 const RESOURCE_RATE_PER_WORKER_MINUTE=1;
 function distance(a,b){const r=Math.PI/180,R=6371000,dLat=(b.lat-a.lat)*r,dLon=(b.lng-a.lng)*r,x=Math.sin(dLat/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLon/2)**2;return 2*R*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))}
 function area(points){if(points.length<3)return 0;const lat0=points.reduce((s,p)=>s+p.lat,0)/points.length,scaleX=111320*Math.cos(lat0*Math.PI/180),scaleY=110540;let sum=0;for(let i=0;i<points.length;i++){const a=points[i],b=points[(i+1)%points.length];sum+=(a.lng*scaleX)*(b.lat*scaleY)-(b.lng*scaleX)*(a.lat*scaleY)}return Math.abs(sum/2)}
@@ -146,6 +147,27 @@ async function calculateTerritoryResources(points){
  }
  return {status:"ok",items,source:"OpenStreetMap",analyzed_at:new Date().toISOString()};
 }
+function unemployedWorkerCount(){
+ if(!currentUser||!colonyLoaded||!savedTerritories.some(z=>z.owner_id===currentUser.id)||!colonyResourceTypes().length)return 0;
+ return Math.max(0,colony.population-colonyTotalsAssigned());
+}
+function updateProfileNotifications(announceUnemployed=false){
+ const badge=$("profileNotificationBadge");if(!badge)return;
+ const achievementCount=pendingAchievementNotices.length,unemployed=unemployedWorkerCount();
+ const total=achievementCount+(unemployed>0?1:0);
+ badge.textContent=total>9?"9+":String(total);
+ badge.hidden=total===0;
+ badge.setAttribute("aria-hidden",String(total===0));
+ const messages=[];
+ if(achievementCount)messages.push(achievementCount+" obiettiv"+(achievementCount===1?"o completato":"i completati"));
+ if(unemployed>0)messages.push(unemployed+" lavorator"+(unemployed===1?"e disoccupato":"i disoccupati"));
+ $("profileNav").title=messages.length? "Profilo · "+messages.join(" · "):"Profilo";
+ $("profileNav").setAttribute("aria-label",messages.length?"Profilo, notifiche: "+messages.join(", "):"Profilo");
+ if(announceUnemployed&&unemployed>0&&unemployed!==lastAnnouncedUnemployed){
+  showToast("Hai "+unemployed+" "+(unemployed===1?"lavoratore disoccupato":"lavoratori disoccupati")+". Apri Il tuo territorio → Popolazione per assegnarli.");
+ }
+ lastAnnouncedUnemployed=unemployed;
+}
 function colonyResourceTypes(){
  const own=savedTerritories.find(z=>z.owner_id===currentUser?.id);
  if(!own||own.resources?.status!=="ok")return [];
@@ -166,6 +188,7 @@ function renderColony(){
  $("colonyResources").innerHTML=html;
  const unassigned=colony.population-colonyTotalsAssigned(),free=$("colonyUnassigned");
  if(free)free.textContent=unassigned+" non assegnati";
+ updateProfileNotifications(false);
  $("colonyResources").querySelectorAll("button[data-resource]").forEach(btn=>btn.addEventListener("click",()=>changeWorkerAssignment(btn.dataset.resource,Number(btn.dataset.delta))));
 }
 async function persistColony(){
@@ -192,6 +215,7 @@ async function loadColony(){
  colonyLoaded=true;
  tickColony();
  renderColony();
+ updateProfileNotifications(true);
 }
 function tickColony(){
  if(!currentUser||!colonyLoaded)return;
@@ -209,7 +233,7 @@ async function changeWorkerAssignment(type,delta){
  if(delta>0&&colonyTotalsAssigned()>=colony.population)return;
  if(delta<0&&current<=0)return;
  colony.assignments[type]=current+delta;
- renderColony();await persistColony();
+ renderColony();updateProfileNotifications(true);await persistColony();
 }
 setInterval(tickColony,15000);
 document.addEventListener("visibilitychange",()=>{
@@ -233,6 +257,7 @@ function renderProfileTab(tab){
  document.querySelectorAll(".profile-tab").forEach(b=>b.classList.toggle("active",b.dataset.profileTab===tab));
  const content=$("profileTabContent");if(!content)return;
  if(tab==="achievements"){
+  if(pendingAchievementNotices.length){pendingAchievementNotices=[];savePlayerProgress();updateProfileNotifications(false)}
   content.innerHTML='<div class="achievement-intro">Completa le sfide per costruire la tua storia da conquistatore.</div>'+achievementList().map(a=>'<article class="achievement-card '+(a.done?"is-unlocked":"is-locked")+'"><span class="achievement-icon">'+a.icon+'</span><div class="achievement-copy"><strong>'+escHtml(a.title)+'</strong><p>'+escHtml(a.description)+'</p>'+(a.id==="walk_one_km"?'<div class="achievement-progress"><i style="width:'+Math.min(100,a.progress/10)+'%"></i></div><small>'+a.progress+' / 1.000 m</small>':'')+'</div><span class="achievement-status">'+(a.done?"✓":"🔒")+'</span></article>').join("");
  }else{
   content.innerHTML='<div class="profile-overview"><div class="profile-summary"><div id="profileAvatar" class="profile-avatar">?</div><div><strong id="profileName">Giocatore</strong><small id="profileEmail"></small></div></div><div class="profile-details" id="profileDetails"></div><div class="avatar-editor"><label for="avatarFile">FOTO PROFILO</label><input id="avatarFile" type="file" accept="image/jpeg,image/png,image/webp" hidden><button id="avatarUploadBtn" class="auth-secondary" type="button">Carica / cambia avatar</button><small id="avatarUploadStatus">Carica una foto per farti riconoscere sulla mappa.</small></div><button id="profileLogout" class="auth-secondary">Esci dall’account</button></div>';
@@ -249,23 +274,25 @@ async function savePlayerProgress(){
  if(!currentUser||walkingSaving)return;
  walkingSaving=true;
  try{
-  const metadata={...(currentUser.user_metadata||{}),territorials_walked_m:Math.round(walkedMeters),territorials_achievements:playerAchievements};
+  const metadata={...(currentUser.user_metadata||{}),territorials_walked_m:Math.round(walkedMeters),territorials_achievements:playerAchievements,territorials_pending_achievements:pendingAchievementNotices};
   const {data,error}=await db.auth.updateUser({data:metadata});if(error)throw error;
   currentUser=data.user||{...currentUser,user_metadata:metadata};
  }catch(e){console.warn("Progress save:",e)}finally{walkingSaving=false}
 }
 async function unlockAchievement(id){
  if(playerAchievements[id])return;
- playerAchievements[id]=true;await savePlayerProgress();
+ playerAchievements[id]=true;pendingAchievementNotices=[...new Set([...pendingAchievementNotices,id])];updateProfileNotifications(false);await savePlayerProgress();
  showToast(id==="first_kingdom"?"Obiettivo sbloccato: primo regno!":"Obiettivo sbloccato: 1 km a piedi!");
  if(!$("profilePanel").hidden&&document.querySelector('.profile-tab.active')?.dataset.profileTab==="achievements")renderProfileTab("achievements");
 }
 function loadPlayerProgress(){
  const meta=currentUser?.user_metadata||{};walkedMeters=Math.max(0,Number(meta.territorials_walked_m)||0);walkPersistedAt=walkedMeters;
  playerAchievements={first_kingdom:!!meta.territorials_achievements?.first_kingdom,walk_one_km:!!meta.territorials_achievements?.walk_one_km};
+ pendingAchievementNotices=(Array.isArray(meta.territorials_pending_achievements)?meta.territorials_pending_achievements:[]).filter(id=>playerAchievements[id]);
  if(walkedMeters>=1000)playerAchievements.walk_one_km=true;
  if(savedTerritories.some(z=>z.owner_id===currentUser?.id))playerAchievements.first_kingdom=true;
  if(playerAchievements.first_kingdom||playerAchievements.walk_one_km)savePlayerProgress();
+ updateProfileNotifications(false);
 }
 function renderProfile(){if(!currentUser)return;renderProfileTab("overview")}
 function renderTerritorySummary(){
