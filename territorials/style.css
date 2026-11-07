@@ -394,3 +394,8 @@ button:not(:disabled):active{transform:translateY(2px) scale(.985)}
 .achievement-progress i{display:block;height:100%;border-radius:8px;background:var(--mint)}
 .achievement-status{font-size:17px;font-weight:900;color:var(--mint-dark)}
 @media(max-width:600px){.territory-map-label{width:210px}.territory-label-resources span{width:15px;height:15px}}
+
+/* V2.4.1 — notifiche sul profilo */
+.profile-rail-button{position:relative;display:grid;place-items:center}
+.profile-notification-badge{position:absolute;top:-5px;right:-5px;min-width:19px;height:19px;padding:0 4px;display:grid;place-items:center;border:2px solid #101b2a;border-radius:12px;background:#ff5968;color:#fff;font-size:10px;font-weight:950;line-height:1;box-shadow:0 2px 7px #0008}
+.profile-notification-badge[hidden]{display:none}
