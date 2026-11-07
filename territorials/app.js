@@ -144,7 +144,7 @@ function colonyResourceTypes(){
  if(!own||own.resources?.status!=="ok")return [];
  return (own.resources.items||[]).map(r=>r.type).filter((v,i,a)=>RESOURCE_TYPES[v]&&a.indexOf(v)===i);
 }
-function colonyTotalsAssigned(){return Object.values(colony.assignments||{}).reduce((s,v)=>s+(Number(v)||0),0)}
+function colonyTotalsAssigned(){return colonyResourceTypes().reduce((s,type)=>s+(Number(colony.assignments?.[type])||0),0)}
 function renderColony(){
  const panel=$("colonyPanel");if(!panel)return;
  panel.hidden=!currentUser||!colonyLoaded;
