@@ -12,6 +12,8 @@ let watchId=null,gpsWatchdog=null,position=null,accuracy=999,track=[],trackLine=
 const CLOSE_DISTANCE=24,MAX_TRACK_ACCURACY=60,MIN_POINTS=5,MIN_AREA=250;
 let savedTerritories=[],currentUser=null,playerName="",lastClosedResources=null,currentZoneDetailsId=null;
 let colony={population:1,assignments:{},inventory:{},last_tick:new Date().toISOString()},colonyLoaded=false,colonySaving=false,colonyLastTick=Date.now();
+let walkedMeters=0,walkPreviousPosition=null,walkPreviousAt=0,walkPersistedAt=0,walkingSaving=false;
+let playerAchievements={first_kingdom:false,walk_one_km:false};
 const RESOURCE_RATE_PER_WORKER_MINUTE=1;
 function distance(a,b){const r=Math.PI/180,R=6371000,dLat=(b.lat-a.lat)*r,dLon=(b.lng-a.lng)*r,x=Math.sin(dLat/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLon/2)**2;return 2*R*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))}
 function area(points){if(points.length<3)return 0;const lat0=points.reduce((s,p)=>s+p.lat,0)/points.length,scaleX=111320*Math.cos(lat0*Math.PI/180),scaleY=110540;let sum=0;for(let i=0;i<points.length;i++){const a=points[i],b=points[(i+1)%points.length];sum+=(a.lng*scaleX)*(b.lat*scaleY)-(b.lng*scaleX)*(a.lat*scaleY)}return Math.abs(sum/2)}
@@ -49,7 +51,9 @@ async function loadZones(){
   const poly=L.polygon(z.points,{color,weight:own?4:3,opacity:.98,dashArray:own?"3 6":"10 5 2 5",lineCap:"round",lineJoin:"round",fillColor:color,fillOpacity:own?0.2:0.13,className:own?"territory-glow territory-own":"territory-glow territory-rival"}).addTo(drawnLayer);
   const center=poly.getBounds().getCenter(),territoryName=z.territory_name||("Territorio di "+(z.owner_name||"Giocatore"));
   const avatar=z.owner_avatar_url||"",avatarMarkup=avatar?'<img src="'+escHtml(avatar)+'" alt="">':'<span>'+escHtml(profileInitials(z.owner_name))+'</span>';
-  L.marker(center,{interactive:true,keyboard:false,icon:L.divIcon({className:"territory-label-wrap",html:'<div class="territory-map-label '+(own?"is-own":"is-rival")+'">'+avatarMarkup+'<span class="territory-label-copy"><strong>'+escHtml(territoryName)+'</strong><small>'+escHtml(z.owner_name||"Giocatore")+'</small></span></div>',iconSize:[210,48],iconAnchor:[105,24]})}).addTo(drawnLayer);
+  const resourceIcons=(z.resources?.status==="ok"?(z.resources.items||[]):[]).filter(r=>RESOURCE_TYPES[r.type]).map(r=>'<span title="'+escHtml(r.label||RESOURCE_TYPES[r.type].label)+'">'+RESOURCE_TYPES[r.type].icon+'</span>').join("");
+  const resourceMarkup=resourceIcons?'<span class="territory-label-resources">'+resourceIcons+'</span>':"";
+  L.marker(center,{interactive:true,keyboard:false,icon:L.divIcon({className:"territory-label-wrap",html:'<div class="territory-map-label '+(own?"is-own":"is-rival")+'">'+avatarMarkup+'<span class="territory-label-copy"><strong>'+escHtml(territoryName)+'</strong><small>'+escHtml(z.owner_name||"Giocatore")+'</small>'+resourceMarkup+'</span></div>',iconSize:[230,60],iconAnchor:[115,30]})}).addTo(drawnLayer);
   poly.bindPopup('<b>'+escHtml(territoryName)+'</b><br>Proprietario: '+escHtml(z.owner_name||"Giocatore")+'<br>'+fmtArea(Number(z.area_m2)||0)+'<br><small>'+new Date(z.created_at).toLocaleDateString("it-IT")+'</small>');
  });
  updatePositionBanner();
@@ -59,7 +63,7 @@ async function loadZones(){
 async function refreshSession(){
  const {data:{session},error}=await db.auth.getSession();if(error)throw error;
  currentUser=session?.user||null;playerName=currentUser?displayName(currentUser):"";
- if(currentUser){$("authPanel").classList.add("hidden");$("authTitle").textContent="Bentornato";await loadZones()}
+ if(currentUser){$("authPanel").classList.add("hidden");$("authTitle").textContent="Bentornato";await loadZones();loadPlayerProgress();if(!TEST_MODE&&document.visibilityState==="visible")startGpsWatch()}
  else{savedTerritories=[];drawnLayer.clearLayers();$("authPanel").classList.remove("hidden");$("authTitle").textContent="Entra nel gioco"}
 }
 async function registerPlayer(){
@@ -67,7 +71,7 @@ async function registerPlayer(){
  if(!name||!email||password.length<6){authMessage("Inserisci un nome, un'email e una password di almeno 6 caratteri.");return}
  $("authSignup").disabled=true;
  try{const {data,error}=await db.auth.signUp({email,password,options:{data:{display_name:name,full_name:name}}});if(error)throw error;
- if(data.session){currentUser=data.user;playerName=name;$("authPanel").classList.add("hidden");await loadZones();authMessage("Account creato. Buon gioco!")}
+ if(data.session){currentUser=data.user;playerName=name;$("authPanel").classList.add("hidden");await loadZones();loadPlayerProgress();authMessage("Account creato. Buon gioco!")}
  else authMessage("Registrazione avviata: controlla la posta per confermare l'email.");
  }catch(e){authMessage(e.message||"Registrazione non riuscita.")}finally{$("authSignup").disabled=false}
 }
@@ -75,7 +79,7 @@ async function loginPlayer(){
  const email=$("authEmail").value.trim(),password=$("authPassword").value;
  if(!email||!password){authMessage("Inserisci email e password.");return}
  $("authLogin").disabled=true;
- try{const {data,error}=await db.auth.signInWithPassword({email,password});if(error)throw error;currentUser=data.user;playerName=displayName(data.user);$("authPanel").classList.add("hidden");await loadZones();showToast("Bentornato, "+playerName)}
+ try{const {data,error}=await db.auth.signInWithPassword({email,password});if(error)throw error;currentUser=data.user;playerName=displayName(data.user);$("authPanel").classList.add("hidden");await loadZones();loadPlayerProgress();if(!TEST_MODE&&document.visibilityState==="visible")startGpsWatch();showToast("Bentornato, "+playerName)}
  catch(e){authMessage(e.message||"Accesso non riuscito.")}finally{$("authLogin").disabled=false}
 }
 async function enterAsGuest(){
@@ -87,7 +91,7 @@ async function enterAsGuest(){
   const {data:updated,error:updateError}=await db.auth.updateUser({data:{display_name:"Giocatore Test",full_name:"Giocatore Test"}});
   if(updateError)throw updateError;
   currentUser=updated.user||data.user;playerName="Giocatore Test";
-  $("authPanel").classList.add("hidden");await loadZones();
+  $("authPanel").classList.add("hidden");await loadZones();loadPlayerProgress();
   showToast("Sei entrato come Giocatore Test");
  }catch(e){
   const message=String(e.message||"").toLowerCase();
@@ -208,7 +212,12 @@ async function changeWorkerAssignment(type,delta){
  renderColony();await persistColony();
 }
 setInterval(tickColony,15000);
-document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")tickColony()});
+document.addEventListener("visibilitychange",()=>{
+ if(document.visibilityState==="hidden"){
+  if(watchId!==null){navigator.geolocation.clearWatch(watchId);watchId=null}
+  walkPreviousPosition=null;walkPreviousAt=0;
+ }else{tickColony();if(currentUser&&!TEST_MODE)startGpsWatch()}
+});
 function resourceMarkup(resources){
  if(resources?.status==="pending")return '<p class="resource-empty">Zona salvata. Sto analizzando le risorse OpenStreetMap…</p>';
  if(!resources||resources.status!=="ok")return '<p class="resource-empty">'+escHtml(resources?.message||"Nessuna informazione cartografica disponibile per questa zona.")+'</p>';
@@ -216,15 +225,48 @@ function resourceMarkup(resources){
  return resources.items.map(r=>'<div class="resource-row resource-'+r.type+'"><span class="resource-icon">'+r.icon+'</span><div class="resource-copy"><strong>'+escHtml(r.label)+'</strong><small>'+fmtArea(r.area_m2)+' di superficie · '+r.share_pct+'%</small><span class="resource-meter"><i style="width:'+Math.min(100,r.share_pct)+'%"></i></span></div></div>').join("");
 }
 function profileInitials(name){return String(name||"G").trim().split(/\s+/).slice(0,2).map(s=>s[0]||"").join("").toUpperCase()}
-function renderProfile(){
- if(!currentUser)return;
- const meta=currentUser.user_metadata||{},name=playerName||displayName(currentUser),photo=meta.avatar_url||meta.picture||meta.photo_url||"";
- $("profileName").textContent=name;
- $("profileEmail").textContent=currentUser.email||"Account ospite";
- $("profileAvatar").innerHTML=photo?'<img src="'+escHtml(photo)+'" alt="Foto profilo">':escHtml(profileInitials(name));
- $("profileDetails").innerHTML='<div><small>TIPO ACCOUNT</small><strong>'+(currentUser.is_anonymous?"Ospite":"Giocatore registrato")+'</strong></div><div><small>COLONIA</small><strong>'+colony.population+' abitanti</strong></div>';
- const upload=$("avatarUploadStatus");if(upload)upload.textContent=photo?"Immagine profilo impostata. Puoi sostituirla quando vuoi.":"Carica una foto per farti riconoscere sulla mappa.";
+function achievementList(){return [
+ {id:"first_kingdom",title:"Crea il tuo primo regno",description:"Disegna e conquista il tuo primo territorio.",icon:"🏰",done:!!playerAchievements.first_kingdom},
+ {id:"walk_one_km",title:"Cammina per un km",description:"Percorri 1.000 metri con il GPS mentre Territorials è aperta.",icon:"🥾",done:!!playerAchievements.walk_one_km,progress:Math.min(1000,Math.round(walkedMeters)),target:1000}
+]}
+function renderProfileTab(tab){
+ document.querySelectorAll(".profile-tab").forEach(b=>b.classList.toggle("active",b.dataset.profileTab===tab));
+ const content=$("profileTabContent");if(!content)return;
+ if(tab==="achievements"){
+  content.innerHTML='<div class="achievement-intro">Completa le sfide per costruire la tua storia da conquistatore.</div>'+achievementList().map(a=>'<article class="achievement-card '+(a.done?"is-unlocked":"is-locked")+'"><span class="achievement-icon">'+a.icon+'</span><div class="achievement-copy"><strong>'+escHtml(a.title)+'</strong><p>'+escHtml(a.description)+'</p>'+(a.id==="walk_one_km"?'<div class="achievement-progress"><i style="width:'+Math.min(100,a.progress/10)+'%"></i></div><small>'+a.progress+' / 1.000 m</small>':'')+'</div><span class="achievement-status">'+(a.done?"✓":"🔒")+'</span></article>').join("");
+ }else{
+  content.innerHTML='<div class="profile-overview"><div class="profile-summary"><div id="profileAvatar" class="profile-avatar">?</div><div><strong id="profileName">Giocatore</strong><small id="profileEmail"></small></div></div><div class="profile-details" id="profileDetails"></div><div class="avatar-editor"><label for="avatarFile">FOTO PROFILO</label><input id="avatarFile" type="file" accept="image/jpeg,image/png,image/webp" hidden><button id="avatarUploadBtn" class="auth-secondary" type="button">Carica / cambia avatar</button><small id="avatarUploadStatus">Carica una foto per farti riconoscere sulla mappa.</small></div><button id="profileLogout" class="auth-secondary">Esci dall’account</button></div>';
+  const meta=currentUser?.user_metadata||{},name=playerName||displayName(currentUser),photo=meta.avatar_url||meta.picture||meta.photo_url||"";
+  $("profileName").textContent=name;$("profileEmail").textContent=currentUser.email||"Account ospite";
+  $("profileAvatar").innerHTML=photo?'<img src="'+escHtml(photo)+'" alt="Foto profilo">':escHtml(profileInitials(name));
+  $("profileDetails").innerHTML='<div><small>TIPO ACCOUNT</small><strong>'+(currentUser.is_anonymous?"Ospite":"Giocatore registrato")+'</strong></div><div><small>COLONIA</small><strong>'+colony.population+' abitanti</strong></div><div><small>CAMMINATA</small><strong>'+fmtDistance(walkedMeters)+'</strong></div>';
+  const upload=$("avatarUploadStatus");if(upload)upload.textContent=photo?"Immagine profilo impostata. Puoi sostituirla quando vuoi.":"Carica una foto per farti riconoscere sulla mappa.";
+  $("avatarUploadBtn").addEventListener("click",()=>$("avatarFile").click());$("avatarFile").addEventListener("change",uploadProfileAvatar);
+  $("profileLogout").addEventListener("click",async()=>{const {error}=await db.auth.signOut();if(error)showToast(error.message);else{closeSidePanels();await refreshSession()}});
+ }
 }
+async function savePlayerProgress(){
+ if(!currentUser||walkingSaving)return;
+ walkingSaving=true;
+ try{
+  const metadata={...(currentUser.user_metadata||{}),territorials_walked_m:Math.round(walkedMeters),territorials_achievements:playerAchievements};
+  const {data,error}=await db.auth.updateUser({data:metadata});if(error)throw error;
+  currentUser=data.user||{...currentUser,user_metadata:metadata};
+ }catch(e){console.warn("Progress save:",e)}finally{walkingSaving=false}
+}
+async function unlockAchievement(id){
+ if(playerAchievements[id])return;
+ playerAchievements[id]=true;await savePlayerProgress();
+ showToast(id==="first_kingdom"?"Obiettivo sbloccato: primo regno!":"Obiettivo sbloccato: 1 km a piedi!");
+ if(!$("profilePanel").hidden&&document.querySelector('.profile-tab.active')?.dataset.profileTab==="achievements")renderProfileTab("achievements");
+}
+function loadPlayerProgress(){
+ const meta=currentUser?.user_metadata||{};walkedMeters=Math.max(0,Number(meta.territorials_walked_m)||0);
+ playerAchievements={first_kingdom:!!meta.territorials_achievements?.first_kingdom,walk_one_km:!!meta.territorials_achievements?.walk_one_km};
+ if(walkedMeters>=1000)playerAchievements.walk_one_km=true;
+ if(savedTerritories.some(z=>z.owner_id===currentUser?.id))playerAchievements.first_kingdom=true;
+}
+function renderProfile(){if(!currentUser)return;loadPlayerProgress();renderProfileTab("overview")}
 function renderTerritorySummary(){
  const box=$("territorySummary"),z=savedTerritories.find(t=>t.owner_id===currentUser?.id);
  if(!box)return;
@@ -301,13 +343,14 @@ async function saveClosedZone(points,m2,walked){
  if(error)throw error;
  savedTerritories=savedTerritories.filter(z=>z.owner_id!==ownerId);
  savedTerritories.push(data);
+ await unlockAchievement("first_kingdom");
  await loadZones();
  // La conquista viene mostrata subito; l'analisi OSM prosegue in background.
  calculateTerritoryResources(points).then(async result=>{
   const {error:updateError}=await db.from("territorials_zones").update({resources:result}).eq("id",data.id).eq("owner_id",ownerId);
   if(updateError)throw updateError;
   const local=savedTerritories.find(z=>z.id===data.id);if(local)local.resources=result;
-  renderColony();
+  await loadZones();renderColony();
   if(currentZoneDetailsId===data.id&&!$("zoneModal").classList.contains("hidden"))$("zoneResources").innerHTML="<h3>Risorse di questo territorio</h3>"+resourceMarkup(result);
   showToast(result.status==="ok"?"Analisi delle risorse completata.":"Zona salvata; dati risorse non disponibili al momento.");
  }).catch(error=>{
@@ -343,9 +386,24 @@ function onSimulatedPosition(p){
  $("hint").textContent=recording?"Spostamento simulato: distanza, punti e confine si aggiornano mentre trascini il segnalino.":"Trascina il segnalino verde sulla mappa. Quando inizi il tracciamento, ogni spostamento verrà conteggiato come camminata.";
 }
 function updateAccuracyCircle(p){const radius=Math.max(5,Math.min(accuracy,1000));if(!accuracyCircle)accuracyCircle=L.circle(p,{radius,color:"#287cff",weight:1,fillColor:"#287cff",fillOpacity:.07,interactive:false}).addTo(map);else{accuracyCircle.setLatLng(p);accuracyCircle.setRadius(radius)}}
+function recordWalkingPosition(p,acc){
+ if(!currentUser||TEST_MODE||document.visibilityState!=="visible")return;
+ const now=Date.now();
+ if(!Number.isFinite(acc)||acc>35){walkPreviousPosition=null;walkPreviousAt=0;return}
+ if(walkPreviousPosition&&walkPreviousAt){
+  const elapsed=(now-walkPreviousAt)/1000,d=distance(walkPreviousPosition,p);
+  if(elapsed>0&&elapsed<=30&&d>=2&&d<=Math.max(35,elapsed*4.5)){
+   walkedMeters+=d;
+   if(walkedMeters>=1000&&!playerAchievements.walk_one_km)unlockAchievement("walk_one_km");
+   if(walkedMeters-walkPersistedAt>=25){walkPersistedAt=walkedMeters;savePlayerProgress()}
+   if(!$("profilePanel").hidden&&document.querySelector('.profile-tab.active')?.dataset.profileTab==="achievements")renderProfileTab("achievements");
+  }
+ }
+ walkPreviousPosition=p;walkPreviousAt=now;
+}
 function onPosition(event){
  const c=event.coords;if(!Number.isFinite(c.latitude)||!Number.isFinite(c.longitude))return;
- const p=L.latLng(c.latitude,c.longitude);position={lat:p.lat,lng:p.lng};accuracy=Number.isFinite(c.accuracy)?c.accuracy:999;
+ const p=L.latLng(c.latitude,c.longitude);position={lat:p.lat,lng:p.lng};accuracy=Number.isFinite(c.accuracy)?c.accuracy:999;recordWalkingPosition({lat:p.lat,lng:p.lng},accuracy);
  setGpsActive(true,accuracy>100?"GPS impreciso":"GPS attivo");
  updatePlayerMarker(p);updateAccuracyCircle(p);
  if(!hasInitialGpsView){map.setView(p,17,{animate:false});hasInitialGpsView=true}
@@ -429,13 +487,14 @@ async function deleteOwnTerritory(){
  finally{btn.disabled=false;updateTerritoryControls()}
 }
 $("deleteZoneBtn").addEventListener("click",deleteOwnTerritory);
-$("avatarUploadBtn").addEventListener("click",()=>$("avatarFile").click());$("avatarFile").addEventListener("change",uploadProfileAvatar);$("saveTerritoryNameBtn").addEventListener("click",saveTerritoryName);
+$("saveTerritoryNameBtn").addEventListener("click",saveTerritoryName);
 function closeSidePanels(){["profilePanel","territoryPanel","drawPanel"].forEach(id=>$(id).hidden=true);document.querySelectorAll(".rail-button").forEach(b=>b.classList.remove("active"))}
 function toggleSidePanel(id,button){
  const wasOpen=!$(id).hidden;closeSidePanels();
  if(!wasOpen){$(id).hidden=false;button.classList.add("active");}
 }
 $("profileNav").addEventListener("click",()=>{toggleSidePanel("profilePanel",$("profileNav"));if(!$("profilePanel").hidden)renderProfile()});
+document.querySelectorAll(".profile-tab").forEach(b=>b.addEventListener("click",()=>renderProfileTab(b.dataset.profileTab)));
 $("exploreNav").addEventListener("click",()=>toggleSidePanel("drawPanel",$("exploreNav")));
 $("territoryNav").addEventListener("click",()=>{toggleSidePanel("territoryPanel",$("territoryNav"));if(!$("territoryPanel").hidden)renderTerritoryTab("population")});
 document.querySelectorAll("[data-close-panel]").forEach(b=>b.addEventListener("click",closeSidePanels));
@@ -462,14 +521,16 @@ function toggleTestMode(){
  if(TEST_MODE){
   if(watchId!==null){navigator.geolocation.clearWatch(watchId);watchId=null}
   if(gpsWatchdog){clearTimeout(gpsWatchdog);gpsWatchdog=null}
+  walkPreviousPosition=null;walkPreviousAt=0;
   if(!position){const p=map.getCenter();position={lat:p.lat,lng:p.lng};accuracy=5}
   updatePlayerMarker(position);updateAccuracyCircle(position);
   $("hint").textContent="Modalità test attiva: trascina il segnalino verde per simulare una camminata.";
   $("drawState").textContent="Modalità test pronta";
  }else{
   setGpsActive(false,"GPS non attivo");
-  $("hint").textContent="Modalità GPS attiva: premi «Attiva GPS» per usare la posizione reale.";
+  $("hint").textContent="Modalità GPS attiva: il GPS misura la camminata mentre Territorials è aperta.";
   $("drawState").textContent="Pronto a tracciare?";
+  if(currentUser&&document.visibilityState==="visible")startGpsWatch();
  }
  updateModeUI();updatePositionBanner();showToast(TEST_MODE?"Modalità test attivata":"Modalità GPS attivata");
 }
