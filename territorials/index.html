@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#101b2a">
+<title>Territorials — Conquista il territorio</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<main id="app">
+  <div id="map" aria-label="Mappa di gioco"></div>
+  <header class="topbar">
+    <div class="brand-mark">T</div>
+    <div class="brand-copy"><strong>TERRITORIALS</strong><small>IL MONDO È IL TUO CAMPO DI GIOCO</small></div>
+    <div class="gps-pill" id="gpsPill"><i></i><span>GPS inattivo</span></div>
+  </header>
+  <section class="territory-banner" id="territoryBanner">
+    <span class="banner-symbol">⌖</span>
+    <div><small>TI TROVI IN</small><strong id="territoryName">Zona non rilevata</strong></div>
+  </section>
+  <section class="draw-panel">
+    <div class="draw-heading"><div><small>LA TUA ESPLORAZIONE</small><strong id="drawState">Pronto a tracciare?</strong></div><span class="live-dot" id="liveDot"></span></div>
+    <div class="stats">
+      <div><small>DISTANZA</small><strong id="distanceValue">0 m</strong></div>
+      <div><small>PUNTI GPS</small><strong id="pointValue">0</strong></div>
+      <div><small>AREA STIMATA</small><strong id="areaValue">—</strong></div>
+    </div>
+    <div class="actions">
+      <button id="startBtn" class="primary">◎ Inizia a tracciare</button>
+      <button id="cancelBtn" class="secondary" disabled>Annulla</button>
+    </div>
+    <p class="hint" id="hint">Attiva il GPS e inizia a camminare. La linea seguirà il tuo percorso.</p>
+  </section>
+  <button id="recenterBtn" class="recenter" aria-label="Centra sulla mia posizione">⌖</button>
+  <div class="map-legend"><span><i class="line-key"></i> Il tuo percorso</span><span><i class="area-key"></i> Territorio conquistato</span></div>
+  <div class="toast" id="toast" role="status"></div>
+</main>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="./app.js"></script>
+</body>
+</html>
