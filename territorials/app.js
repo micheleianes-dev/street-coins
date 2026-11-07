@@ -1,5 +1,5 @@
 /* TERRITORIALS — V2.4.0 identità di conquista, colonia e risorse */
-let TEST_MODE=true;
+let TEST_MODE=false;
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
@@ -71,7 +71,7 @@ async function registerPlayer(){
  if(!name||!email||password.length<6){authMessage("Inserisci un nome, un'email e una password di almeno 6 caratteri.");return}
  $("authSignup").disabled=true;
  try{const {data,error}=await db.auth.signUp({email,password,options:{data:{display_name:name,full_name:name}}});if(error)throw error;
- if(data.session){currentUser=data.user;playerName=name;$("authPanel").classList.add("hidden");await loadZones();loadPlayerProgress();authMessage("Account creato. Buon gioco!")}
+ if(data.session){currentUser=data.user;playerName=name;$("authPanel").classList.add("hidden");await loadZones();loadPlayerProgress();if(document.visibilityState==="visible")startGpsWatch();authMessage("Account creato. Buon gioco!")}
  else authMessage("Registrazione avviata: controlla la posta per confermare l'email.");
  }catch(e){authMessage(e.message||"Registrazione non riuscita.")}finally{$("authSignup").disabled=false}
 }
@@ -91,7 +91,7 @@ async function enterAsGuest(){
   const {data:updated,error:updateError}=await db.auth.updateUser({data:{display_name:"Giocatore Test",full_name:"Giocatore Test"}});
   if(updateError)throw updateError;
   currentUser=updated.user||data.user;playerName="Giocatore Test";
-  $("authPanel").classList.add("hidden");await loadZones();loadPlayerProgress();
+  $("authPanel").classList.add("hidden");await loadZones();loadPlayerProgress();if(document.visibilityState==="visible")startGpsWatch();
   showToast("Sei entrato come Giocatore Test");
  }catch(e){
   const message=String(e.message||"").toLowerCase();
@@ -261,12 +261,12 @@ async function unlockAchievement(id){
  if(!$("profilePanel").hidden&&document.querySelector('.profile-tab.active')?.dataset.profileTab==="achievements")renderProfileTab("achievements");
 }
 function loadPlayerProgress(){
- const meta=currentUser?.user_metadata||{};walkedMeters=Math.max(0,Number(meta.territorials_walked_m)||0);
+ const meta=currentUser?.user_metadata||{};walkedMeters=Math.max(0,Number(meta.territorials_walked_m)||0);walkPersistedAt=walkedMeters;
  playerAchievements={first_kingdom:!!meta.territorials_achievements?.first_kingdom,walk_one_km:!!meta.territorials_achievements?.walk_one_km};
  if(walkedMeters>=1000)playerAchievements.walk_one_km=true;
  if(savedTerritories.some(z=>z.owner_id===currentUser?.id))playerAchievements.first_kingdom=true;
 }
-function renderProfile(){if(!currentUser)return;loadPlayerProgress();renderProfileTab("overview")}
+function renderProfile(){if(!currentUser)return;renderProfileTab("overview")}
 function renderTerritorySummary(){
  const box=$("territorySummary"),z=savedTerritories.find(t=>t.owner_id===currentUser?.id);
  if(!box)return;
