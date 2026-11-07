@@ -66,3 +66,8 @@
 .resource-meter{height:5px;overflow:hidden;border-radius:5px;background:#31475a}.resource-meter i{display:block;height:100%;border-radius:5px;background:#4ce0b5}
 .resource-empty{padding:12px;border-radius:10px;background:#1b2b3b;color:#a8bac8;font-size:11px;line-height:1.5}
 #resourcesBtn{min-height:42px;padding:0 14px}
+
+/* V1.4.0 — gestione zona personale */
+.danger-button{flex:0 0 100%;min-height:40px;padding:0 14px;border:1px solid #ff737355;border-radius:11px;background:#552b35;color:#ffd6d6;font-size:12px;font-weight:850;cursor:pointer}
+.danger-button[hidden]{display:none}
+.danger-button:disabled{opacity:.5;cursor:wait}
