@@ -1,4 +1,4 @@
-/* TERRITORIALS — V1.6.0 risorse in corso, pulizia tracciati, modalità test */
+/* TERRITORIALS — V2.0.0 colonia, popolazione e raccolta risorse */
 let TEST_MODE=true;
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
@@ -11,6 +11,8 @@ const drawnLayer=L.layerGroup().addTo(map);
 let watchId=null,gpsWatchdog=null,position=null,accuracy=999,track=[],trackLine=null,playerMarker=null,accuracyCircle=null,recording=false,totalDistance=0,toastTimer=null,hasInitialGpsView=false;
 const CLOSE_DISTANCE=24,MAX_TRACK_ACCURACY=60,MIN_POINTS=5,MIN_AREA=250;
 let savedTerritories=[],currentUser=null,playerName="",lastClosedResources=null,currentZoneDetailsId=null;
+let colony={population:1,assignments:{},inventory:{},last_tick:new Date().toISOString()},colonyLoaded=false,colonySaving=false,colonyLastTick=Date.now();
+const RESOURCE_RATE_PER_WORKER_MINUTE=1;
 function distance(a,b){const r=Math.PI/180,R=6371000,dLat=(b.lat-a.lat)*r,dLon=(b.lng-a.lng)*r,x=Math.sin(dLat/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLon/2)**2;return 2*R*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))}
 function area(points){if(points.length<3)return 0;const lat0=points.reduce((s,p)=>s+p.lat,0)/points.length,scaleX=111320*Math.cos(lat0*Math.PI/180),scaleY=110540;let sum=0;for(let i=0;i<points.length;i++){const a=points[i],b=points[(i+1)%points.length];sum+=(a.lng*scaleX)*(b.lat*scaleY)-(b.lng*scaleX)*(a.lat*scaleY)}return Math.abs(sum/2)}
 function fmtArea(value){return value>=10000?(value/10000).toFixed(2)+" ha":Math.round(value)+" m²"}
@@ -49,6 +51,7 @@ async function loadZones(){
  });
  updatePositionBanner();
  updateTerritoryControls();
+ if(currentUser)await loadColony();
 }
 async function refreshSession(){
  const {data:{session},error}=await db.auth.getSession();if(error)throw error;
@@ -136,6 +139,74 @@ async function calculateTerritoryResources(points){
  }
  return {status:"ok",items,source:"OpenStreetMap",analyzed_at:new Date().toISOString()};
 }
+function colonyResourceTypes(){
+ const own=savedTerritories.find(z=>z.owner_id===currentUser?.id);
+ if(!own||own.resources?.status!=="ok")return [];
+ return (own.resources.items||[]).map(r=>r.type).filter((v,i,a)=>RESOURCE_TYPES[v]&&a.indexOf(v)===i);
+}
+function colonyTotalsAssigned(){return Object.values(colony.assignments||{}).reduce((s,v)=>s+(Number(v)||0),0)}
+function renderColony(){
+ const panel=$("colonyPanel");if(!panel)return;
+ panel.hidden=!currentUser||!colonyLoaded;
+ $("colonyPopulation").textContent=String(colony.population);
+ const types=colonyResourceTypes(),own=savedTerritories.find(z=>z.owner_id===currentUser?.id);
+ let html="";
+ if(own?.resources?.status==="pending")html='<p class="colony-note">Analisi delle risorse in corso…</p>';
+ else if(!types.length)html='<p class="colony-note">Conquista una zona con risorse mappate per iniziare la raccolta.</p>';
+ else html=types.map(type=>{
+  const workers=Number(colony.assignments[type])||0,amount=Number(colony.inventory[type])||0,rate=workers*RESOURCE_RATE_PER_WORKER_MINUTE;
+  return '<div class="colony-resource"><div class="colony-resource-head"><span>'+RESOURCE_TYPES[type].icon+' '+RESOURCE_TYPES[type].label+'</span><strong>'+amount.toFixed(2)+'</strong></div><div class="colony-resource-sub"><span>'+workers+' lavoratori</span><span>+'+rate.toFixed(0)+'/min</span></div><div class="colony-worker-controls"><button type="button" data-resource="'+type+'" data-delta="-1" aria-label="Rimuovi un lavoratore">−</button><span>'+workers+'</span><button type="button" data-resource="'+type+'" data-delta="1" aria-label="Aggiungi un lavoratore">+</button></div></div>';
+ }).join("");
+ $("colonyResources").innerHTML=html;
+ const unassigned=colony.population-colonyTotalsAssigned();
+ $("colonyUnassigned").textContent=unassigned+" non assegnati";
+ $("colonyResources").querySelectorAll("button[data-resource]").forEach(btn=>btn.addEventListener("click",()=>changeWorkerAssignment(btn.dataset.resource,Number(btn.dataset.delta))));
+}
+async function persistColony(){
+ if(!currentUser||!colonyLoaded||colonySaving)return;
+ colonySaving=true;
+ try{
+  const row={owner_id:currentUser.id,population:colony.population,assignments:colony.assignments,inventory:colony.inventory,last_tick:new Date(colonyLastTick).toISOString(),updated_at:new Date().toISOString()};
+  const {error}=await db.from("territorials_colonies").upsert(row,{onConflict:"owner_id"});
+  if(error)throw error;
+ }catch(e){console.error("Colony save:",e);showToast("Impossibile salvare i dati della colonia.");}
+ finally{colonySaving=false}
+}
+async function loadColony(){
+ const {data,error}=await db.from("territorials_colonies").select("*").eq("owner_id",currentUser.id).maybeSingle();
+ if(error)throw error;
+ if(data){
+  colony={population:Math.max(1,Number(data.population)||1),assignments:data.assignments||{},inventory:data.inventory||{},last_tick:data.last_tick||new Date().toISOString()};
+  colonyLastTick=new Date(colony.last_tick).getTime();
+ }else{
+  colony={population:1,assignments:{},inventory:{},last_tick:new Date().toISOString()};colonyLastTick=Date.now();
+  const {error:insertError}=await db.from("territorials_colonies").insert({owner_id:currentUser.id,population:1,assignments:{},inventory:{},last_tick:new Date(colonyLastTick).toISOString()});
+  if(insertError)throw insertError;
+ }
+ colonyLoaded=true;
+ tickColony();
+ renderColony();
+}
+function tickColony(){
+ if(!currentUser||!colonyLoaded)return;
+ const now=Date.now(),elapsed=Math.max(0,(now-colonyLastTick)/1000);
+ if(elapsed<1)return;
+ for(const type of colonyResourceTypes()){
+  const workers=Math.max(0,Number(colony.assignments[type])||0);
+  if(workers)colony.inventory[type]=(Number(colony.inventory[type])||0)+(workers*RESOURCE_RATE_PER_WORKER_MINUTE*elapsed/60);
+ }
+ colonyLastTick=now;colony.last_tick=new Date(now).toISOString();renderColony();persistColony();
+}
+async function changeWorkerAssignment(type,delta){
+ if(!colonyResourceTypes().includes(type))return;
+ const current=Number(colony.assignments[type])||0;
+ if(delta>0&&colonyTotalsAssigned()>=colony.population)return;
+ if(delta<0&&current<=0)return;
+ colony.assignments[type]=current+delta;
+ renderColony();await persistColony();
+}
+setInterval(tickColony,15000);
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")tickColony()});
 function resourceMarkup(resources){
  if(resources?.status==="pending")return '<p class="resource-empty">Zona salvata. Sto analizzando le risorse OpenStreetMap…</p>';
  if(!resources||resources.status!=="ok")return '<p class="resource-empty">'+escHtml(resources?.message||"Nessuna informazione cartografica disponibile per questa zona.")+'</p>';
@@ -153,6 +224,7 @@ function openResources(){
  const totalsMarkup=known?Object.entries(totals).filter(([,v])=>v>0).map(([k,v])=>'<div class="resource-row"><span class="resource-icon">'+RESOURCE_TYPES[k].icon+'</span><div class="resource-copy"><strong>'+RESOURCE_TYPES[k].label+'</strong><small>'+fmtArea(v)+' complessivi</small></div></div>').join(""):'<p class="resource-empty">Non ci sono ancora dati sulle risorse.</p>';
  $("resourcesList").innerHTML=pending?pendingMarkup+totalsMarkup:totalsMarkup;
  $("resourcesModal").classList.remove("hidden");
+ renderColony();
 }
 
 function perimeter(points){let total=0;for(let i=0;i<points.length;i++)total+=distance(points[i],points[(i+1)%points.length]);return total}
@@ -187,12 +259,14 @@ async function saveClosedZone(points,m2,walked){
   const {error:updateError}=await db.from("territorials_zones").update({resources:result}).eq("id",data.id).eq("owner_id",ownerId);
   if(updateError)throw updateError;
   const local=savedTerritories.find(z=>z.id===data.id);if(local)local.resources=result;
+  renderColony();
   if(currentZoneDetailsId===data.id&&!$("zoneModal").classList.contains("hidden"))$("zoneResources").innerHTML="<h3>Risorse di questo territorio</h3>"+resourceMarkup(result);
   showToast(result.status==="ok"?"Analisi delle risorse completata.":"Zona salvata; dati risorse non disponibili al momento.");
  }).catch(error=>{
   console.error("Territorials resource analysis:",error);
   const fallback={status:"unknown",items:[],message:"Zona salvata. Non è stato possibile completare l’analisi delle risorse."};
   const local=savedTerritories.find(z=>z.id===data.id);if(local)local.resources=fallback;
+  renderColony();
   if(currentZoneDetailsId===data.id&&!$("zoneModal").classList.contains("hidden"))$("zoneResources").innerHTML="<h3>Risorse di questo territorio</h3>"+resourceMarkup(fallback);
  });
  return data;
