@@ -1,4 +1,5 @@
 /* TERRITORIALS — V1.2.0 account e territori persistenti */
+const TEST_MODE=new URLSearchParams(location.search).get("test")==="1";
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
