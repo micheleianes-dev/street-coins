@@ -265,6 +265,7 @@ function loadPlayerProgress(){
  playerAchievements={first_kingdom:!!meta.territorials_achievements?.first_kingdom,walk_one_km:!!meta.territorials_achievements?.walk_one_km};
  if(walkedMeters>=1000)playerAchievements.walk_one_km=true;
  if(savedTerritories.some(z=>z.owner_id===currentUser?.id))playerAchievements.first_kingdom=true;
+ if(playerAchievements.first_kingdom||playerAchievements.walk_one_km)savePlayerProgress();
 }
 function renderProfile(){if(!currentUser)return;renderProfileTab("overview")}
 function renderTerritorySummary(){
