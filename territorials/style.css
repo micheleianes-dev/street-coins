@@ -364,3 +364,33 @@ button:not(:disabled):active{transform:translateY(2px) scale(.985)}
  .mission-stamp{display:none}
 }
 @media(prefers-reduced-motion:reduce){.territory-rival{animation:none}}
+
+
+/* TERRITORIALS — etichette risorse sulla mappa e obiettivi profilo */
+.territory-map-label{width:230px;min-height:56px;gap:7px;padding:6px 9px 6px 5px;white-space:normal}
+.territory-map-label>img,.territory-map-label>span:first-child{width:30px;height:30px;flex-basis:30px}
+.territory-label-copy{flex:1;gap:2px}
+.territory-label-copy strong{font-size:10px;line-height:1.1}
+.territory-label-copy small{font-size:8px}
+.territory-label-resources{display:flex;align-items:center;gap:4px;margin-top:3px;min-height:13px}
+.territory-label-resources span{display:grid;place-items:center;width:16px;height:16px;border-radius:5px;background:#f3efe7;font-size:10px;line-height:1}
+.profile-tabs{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:12px 0}
+.profile-tab{padding:10px;border:1px solid #e8dfcf;border-radius:11px;background:#f3efe7;color:#69758a;font-size:11px;font-weight:900}
+.profile-tab.active{background:#ffe5df;border:2px solid #ffc8bd;color:#b94d40}
+.profile-tab-content{min-height:100px}
+.profile-overview{display:flex;flex-direction:column;gap:10px}
+.profile-overview .profile-summary{margin-top:0}
+.profile-overview .avatar-editor{margin:0}
+.achievement-intro{margin:4px 0 12px;color:var(--muted);font-size:11px;line-height:1.45}
+.achievement-card{display:flex;align-items:center;gap:10px;margin:9px 0;padding:12px;border:1px solid #e8dfcf;border-radius:15px;background:#fffaf1}
+.achievement-card.is-unlocked{border-color:#a9dfca;background:#effaf4}
+.achievement-card.is-locked{opacity:.82}
+.achievement-icon{display:grid;place-items:center;width:42px;height:42px;flex:0 0 42px;border-radius:13px;background:#fff0c7;font-size:22px}
+.achievement-copy{min-width:0;flex:1}
+.achievement-copy strong{color:var(--ink);font-family:'Fredoka',sans-serif;font-size:13px}
+.achievement-copy p{margin:4px 0;color:var(--muted);font-size:10px;line-height:1.4}
+.achievement-copy>small{display:block;margin-top:4px;color:#6f8192;font-size:9px;font-weight:800}
+.achievement-progress{height:7px;margin-top:7px;overflow:hidden;border-radius:8px;background:#e7e1d5}
+.achievement-progress i{display:block;height:100%;border-radius:8px;background:var(--mint)}
+.achievement-status{font-size:17px;font-weight:900;color:var(--mint-dark)}
+@media(max-width:600px){.territory-map-label{width:210px}.territory-label-resources span{width:15px;height:15px}}
