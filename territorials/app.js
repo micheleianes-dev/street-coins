@@ -1,5 +1,5 @@
-/* TERRITORIALS — V1.5.0 sostituzione automatica zona, aree verdi OSM */
-const TEST_MODE=true;
+/* TERRITORIALS — V1.6.0 risorse in corso, pulizia tracciati, modalità test */
+let TEST_MODE=true;
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
@@ -147,8 +147,11 @@ function openResources(){
  const totals={forest:0,food:0,materials:0,water:0};
  let known=false;
  own.forEach(z=>{if(z.resources?.status==="ok"){known=true;(z.resources.items||[]).forEach(r=>{if(totals[r.type]!==undefined)totals[r.type]+=Number(r.area_m2)||0})}});
+ const pending=own.some(z=>z.resources?.status==="pending");
  $("resourcesIntro").textContent=own.length+" territori · superfici complessive rilevate";
- $("resourcesList").innerHTML=known?Object.entries(totals).filter(([,v])=>v>0).map(([k,v])=>'<div class="resource-row"><span class="resource-icon">'+RESOURCE_TYPES[k].icon+'</span><div class="resource-copy"><strong>'+RESOURCE_TYPES[k].label+'</strong><small>'+fmtArea(v)+' complessivi</small></div></div>').join(""):'<p class="resource-empty">Non ci sono ancora dati sulle risorse. Chiudi un territorio per avviare l’analisi OpenStreetMap.</p>';
+ const pendingMarkup=pending?'<p class="resource-empty">Calcolo risorse in corso…</p>':"";
+ const totalsMarkup=known?Object.entries(totals).filter(([,v])=>v>0).map(([k,v])=>'<div class="resource-row"><span class="resource-icon">'+RESOURCE_TYPES[k].icon+'</span><div class="resource-copy"><strong>'+RESOURCE_TYPES[k].label+'</strong><small>'+fmtArea(v)+' complessivi</small></div></div>').join(""):'<p class="resource-empty">Non ci sono ancora dati sulle risorse.</p>';
+ $("resourcesList").innerHTML=pending?pendingMarkup+totalsMarkup:totalsMarkup;
  $("resourcesModal").classList.remove("hidden");
 }
 
@@ -198,7 +201,7 @@ async function saveClosedZone(points,m2,walked){
 function updatePlayerMarker(p){
  if(!playerMarker){
   playerMarker=L.marker(p,{icon:L.divIcon({className:"player-marker-icon",html:'<div class="player-dot"><span></span></div>',iconSize:[30,30],iconAnchor:[15,15]}),zIndexOffset:1000,keyboard:false,draggable:TEST_MODE}).addTo(map);
-  if(TEST_MODE){playerMarker.on("drag",e=>onSimulatedPosition(e.target.getLatLng()));playerMarker.on("dragend",e=>onSimulatedPosition(e.target.getLatLng()))}
+  playerMarker.on("drag",e=>onSimulatedPosition(e.target.getLatLng()));playerMarker.on("dragend",e=>onSimulatedPosition(e.target.getLatLng()));
  }else playerMarker.setLatLng(p);
 }
 function applyMovementPoint(p){
@@ -261,7 +264,7 @@ async function tryCloseLoop(current){
  }catch(e){showToast("Non è stato possibile salvare la zona: "+(e.message||"riprova"));$("hint").textContent="Errore nel salvataggio. Il perimetro è ancora aperto: torna vicino al punto iniziale per riprovare."}
  finally{window.zoneSaving=false}
 }
-function stopTracking(completed){recording=false;$("startBtn").disabled=false;$("startBtn").textContent="Inizia a tracciare";$("cancelBtn").disabled=true;$("liveDot").classList.remove("active");if(!completed){if(trackLine)map.removeLayer(trackLine);trackLine=null;track=[];totalDistance=0;updateStats();$("drawState").textContent="Tracciamento annullato";$("hint").textContent="Quando vuoi, puoi iniziare un nuovo percorso."}updateTerritoryControls()}
+function stopTracking(completed){recording=false;$("startBtn").disabled=false;$("startBtn").textContent="Inizia a tracciare";$("cancelBtn").disabled=true;$("liveDot").classList.remove("active");if(trackLine){map.removeLayer(trackLine);trackLine=null}if(!completed){track=[];totalDistance=0;updateStats();$("drawState").textContent="Tracciamento annullato";$("hint").textContent="Quando vuoi, puoi iniziare un nuovo percorso."}updateTerritoryControls()}
 function cancelTracking(){if(!recording)return;stopTracking(false);$("territoryName").textContent="Zona libera";showToast("Tracciamento annullato")}
 async function deleteOwnTerritory(){
  const own=savedTerritories.find(z=>z.owner_id===currentUser?.id);
@@ -272,6 +275,7 @@ async function deleteOwnTerritory(){
  try{
   const {error}=await db.from("territorials_zones").delete().eq("id",own.id).eq("owner_id",currentUser.id);
   if(error)throw error;
+  if(trackLine){map.removeLayer(trackLine);trackLine=null}track=[];totalDistance=0;updateStats();
   await loadZones();
   $("drawState").textContent="Zona eliminata";$("hint").textContent="Ora puoi tracciare e conquistare una nuova zona.";
   showToast("La tua zona è stata eliminata.");
@@ -285,10 +289,37 @@ $("locateBtn").addEventListener("click",startGpsWatch);$("startBtn").addEventLis
 $("recenterBtn").addEventListener("click",()=>{if(position){map.setView([position.lat,position.lng],17,{animate:false});if(playerMarker)playerMarker.setLatLng([position.lat,position.lng])}else{showToast("Attiva prima il GPS.");startGpsWatch()}});
 window.addEventListener("beforeunload",()=>{if(watchId!==null)navigator.geolocation.clearWatch(watchId)});
 updateStats();
+function updateModeUI(){
+ $("testModePill").hidden=!TEST_MODE;
+ $("gpsPill").hidden=TEST_MODE;
+ $("locateBtn").hidden=TEST_MODE;
+ $("modeToggleBtn").textContent=TEST_MODE?"Passa a GPS":"Attiva modalità test";
+ $("modeToggleBtn").setAttribute("aria-pressed",String(TEST_MODE));
+ if(playerMarker){if(TEST_MODE)playerMarker.dragging.enable();else playerMarker.dragging.disable()}
+}
+function toggleTestMode(){
+ if(recording){showToast("Annulla il tracciamento prima di cambiare modalità.");return}
+ TEST_MODE=!TEST_MODE;
+ if(TEST_MODE){
+  if(watchId!==null){navigator.geolocation.clearWatch(watchId);watchId=null}
+  if(gpsWatchdog){clearTimeout(gpsWatchdog);gpsWatchdog=null}
+  if(!position){const p=map.getCenter();position={lat:p.lat,lng:p.lng};accuracy=5}
+  updatePlayerMarker(position);updateAccuracyCircle(position);
+  $("hint").textContent="Modalità test attiva: trascina il segnalino verde per simulare una camminata.";
+  $("drawState").textContent="Modalità test pronta";
+ }else{
+  setGpsActive(false,"GPS non attivo");
+  $("hint").textContent="Modalità GPS attiva: premi «Attiva GPS» per usare la posizione reale.";
+  $("drawState").textContent="Pronto a tracciare?";
+ }
+ updateModeUI();updatePositionBanner();showToast(TEST_MODE?"Modalità test attivata":"Modalità GPS attivata");
+}
+$("modeToggleBtn").addEventListener("click",toggleTestMode);
+const initial=map.getCenter();position={lat:initial.lat,lng:initial.lng};accuracy=5;
+updatePlayerMarker(initial);updateAccuracyCircle(initial);$("recenterBtn").disabled=false;updatePositionBanner();updateTerritoryControls();updateModeUI();
 if(TEST_MODE){
- $("testModePill").hidden=false;$("gpsPill").hidden=true;$("locateBtn").hidden=true;
  $("drawState").textContent="Modalità test pronta";
  $("hint").textContent="Trascina il segnalino verde sulla mappa per simulare una camminata. Premi «Inizia a tracciare» per disegnare un territorio.";
- const initial=map.getCenter();position={lat:initial.lat,lng:initial.lng};accuracy=5;
- updatePlayerMarker(initial);updateAccuracyCircle(initial);$("recenterBtn").disabled=false;updatePositionBanner();updateTerritoryControls();
+}else{
+ $("hint").textContent="Modalità GPS attiva: premi «Attiva GPS» per usare la posizione reale.";
 }
