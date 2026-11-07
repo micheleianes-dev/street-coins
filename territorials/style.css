@@ -162,7 +162,6 @@
 @media(max-width:600px){.app-version{right:62px;left:auto}}
 
 /* TERRITORIALS 2.3 — Fresh playground identity */
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&family=Fredoka:wght@400;500;600;700&display=swap');
 :root{
  --ink:#26334a;--muted:#738096;--paper:#fff8ec;--panel:#fffdf8;--line:#e8dfcf;
  --coral:#ff705e;--coral-dark:#e85b4c;--mint:#35bda6;--mint-dark:#168f80;
@@ -291,3 +290,77 @@ button:not(:disabled):active{transform:translateY(2px) scale(.985)}
  .map-legend{border-radius:10px}
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+
+
+/* TERRITORIALS 2.4.0 — Segni di conquista, esplorazione e raccolta */
+.map-legend{
+  min-width:166px;padding:10px 12px;gap:8px;border:2px solid #fff;
+  box-shadow:0 5px 0 #26334a12,0 9px 22px #26334a20;
+}
+.legend-heading{display:flex;align-items:center;gap:7px;padding-bottom:7px;margin-bottom:1px;border-bottom:1px dashed #e5dac8;color:#34435a;font-family:'Fredoka',sans-serif;font-size:11px;letter-spacing:.65px}
+.legend-heading>span{display:grid;place-items:center;width:20px;height:20px;border-radius:7px;background:#fff0c7;color:#a66d14;font-size:14px}
+.line-key{height:0;border:0;border-top:3px dashed var(--coral);background:transparent}
+.area-key{width:15px;height:12px;border:2px solid var(--mint);border-radius:4px;background:#35bda633}
+.rival-key{width:15px;height:12px;border:2px dashed var(--lilac);border-radius:4px;background:#a68be833}
+.map-mission{
+  position:absolute;z-index:410;top:260px;left:22px;display:flex;align-items:center;gap:10px;
+  width:230px;padding:10px 11px;border:2px solid #fff;border-radius:16px;
+  background:#fffdf8f2;box-shadow:0 5px 0 #26334a12,0 10px 22px #26334a20;
+  transform:rotate(-1deg);pointer-events:none;
+}
+.mission-flag{position:relative;display:grid;place-items:center;width:39px;height:39px;flex:0 0 39px;border-radius:12px;background:#ffe5df;color:#c75145;font-size:23px;box-shadow:inset 0 -3px 0 #f3c1b7}
+.mission-copy{display:flex;min-width:0;flex:1;flex-direction:column;gap:2px}
+.mission-copy small{color:#8b94a3;font-size:8px;font-weight:900;letter-spacing:1px}
+.mission-copy strong{color:#29364c;font-family:'Fredoka',sans-serif;font-size:16px;line-height:1.1}
+.mission-copy>span{color:#8190a2;font-size:7px;font-weight:900;letter-spacing:.35px;white-space:nowrap}
+.mission-stamp{display:grid;place-items:center;width:29px;height:29px;flex:0 0 29px;border:2px solid #f5c85d;border-radius:50%;color:#a66d14;font-family:'Fredoka',sans-serif;font-size:10px;font-weight:700;transform:rotate(10deg)}
+.brand-mark{position:relative;overflow:visible}
+.brand-mark:after{content:"✦";position:absolute;top:-7px;right:-6px;color:#ffd166;font-size:15px;text-shadow:0 1px 0 #fff}
+.territory-banner{position:relative;overflow:hidden}
+.territory-banner:after{content:"";position:absolute;right:-10px;top:-21px;width:82px;height:82px;border:9px dotted #35bda622;border-radius:50%;pointer-events:none}
+.banner-symbol{transform:rotate(-7deg);box-shadow:inset 0 -3px 0 #168f801c}
+.side-panel{position:absolute;overflow:auto}
+.side-panel:before{content:"";position:absolute;top:0;left:21px;right:21px;height:5px;border-radius:0 0 6px 6px;background:repeating-linear-gradient(90deg,var(--coral) 0 20px,transparent 20px 24px,var(--mint) 24px 44px,transparent 44px 48px,var(--sun) 48px 68px,transparent 68px 72px,var(--lilac) 72px 92px,transparent 92px 96px);pointer-events:none}
+.territory-map-label{position:relative;overflow:visible}
+.territory-map-label.is-own{box-shadow:0 0 0 2px #35bda622,0 4px 0 #26334a20,0 8px 18px #26334a22}
+.territory-map-label.is-rival{box-shadow:0 0 0 2px #a68be833,0 4px 0 #26334a20,0 8px 18px #26334a22}
+.territory-map-label.is-own:after,.territory-map-label.is-rival:after{
+  position:absolute;right:8px;top:-9px;padding:3px 7px;border:1.5px solid #fff;border-radius:8px;
+  font-size:7px;font-weight:1000;letter-spacing:.55px;box-shadow:0 2px 5px #26334a22;
+}
+.territory-map-label.is-own:after{content:"★ TUO";background:#d8f5e9;color:#187b67}
+.territory-map-label.is-rival:after{content:"⚑ RIVALE";background:#eee7ff;color:#755bb4}
+.territory-glow{stroke-linecap:round;stroke-linejoin:round}
+.territory-own{filter:drop-shadow(0 0 7px #35bda699);animation:territoryPulse 3.8s ease-in-out infinite}
+.territory-rival{filter:drop-shadow(0 0 7px #a68be899);animation:rivalPulse 4.4s ease-in-out infinite}
+@keyframes rivalPulse{0%,100%{fill-opacity:.10;stroke-opacity:.88}50%{fill-opacity:.20;stroke-opacity:1}}
+.resource-row{position:relative;overflow:hidden;padding-left:13px}
+.resource-row:before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:4px;border-radius:0 4px 4px 0;background:#c6bda9}
+.resource-icon{display:grid;place-items:center;width:38px;height:38px;flex:0 0 38px;border-radius:12px;background:#e9e3d6;box-shadow:inset 0 -3px 0 #26334a0c;font-size:21px}
+.resource-forest:before{background:#35bda6}.resource-forest .resource-icon{background:#def4e9}
+.resource-food:before{background:#eab84d}.resource-food .resource-icon{background:#fff0c7}
+.resource-materials:before{background:#8c9bb4}.resource-materials .resource-icon{background:#e6ebf3}
+.resource-water:before{background:#5b9de9}.resource-water .resource-icon{background:#e0efff}
+.colony-resource{position:relative;padding-left:10px;border-left:3px solid #d9cfbd;border-radius:3px}
+.colony-resource.colony-forest{border-left-color:var(--mint)}
+.colony-resource.colony-food{border-left-color:#eab84d}
+.colony-resource.colony-materials{border-left-color:#8c9bb4}
+.colony-resource.colony-water{border-left-color:#5b9de9}
+.zone-medal{position:relative;transform:rotate(-4deg);border:3px solid #fff6d9}
+.zone-card .zone-stats div{position:relative;overflow:hidden}
+.zone-card .zone-stats div:after{content:"✦";position:absolute;top:5px;right:8px;color:#e9cf91;font-size:11px}
+.primary,.auth-primary{background-image:linear-gradient(135deg,#ff806f,#f45d54);letter-spacing:.15px}
+.primary:before,.auth-primary:before{content:"⚑";margin-right:7px}
+.secondary,.auth-secondary{letter-spacing:.05px}
+@media(max-width:600px){
+ .map-mission{top:182px;left:10px;width:220px;padding:8px 9px;gap:8px}
+ .mission-flag{width:34px;height:34px;flex-basis:34px;font-size:20px}
+ .mission-copy strong{font-size:15px}
+ .mission-copy>span{font-size:6.5px}
+ .map-legend{min-width:158px;padding:9px 10px;gap:7px}
+}
+@media(max-width:370px){
+ .map-mission{width:205px}
+ .mission-stamp{display:none}
+}
+@media(prefers-reduced-motion:reduce){.territory-rival{animation:none}}
