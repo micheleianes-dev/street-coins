@@ -21,7 +21,7 @@ function updateTerritoryControls(){
  const start=$("startBtn"),del=$("deleteZoneBtn");
  if(!start||!del)return;
  del.hidden=!own;
- start.disabled=!!own||recording;
+ start.disabled=recording;
  start.textContent="Inizia a tracciare";
  if(own&&!recording)$("hint").textContent="Hai già una zona: quando ne conquisterai un’altra, questa verrà sostituita automaticamente.";
 }
