@@ -1,4 +1,4 @@
-/* TERRITORIALS — V2.4.1 notifiche profilo e lavoratori */
+/* TERRITORIALS — V2.4.7 notifiche obiettivi separate dagli avvisi popolazione */
 let TEST_MODE=true;
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
@@ -165,13 +165,13 @@ function unemployedWorkerCount(){
 function updateProfileNotifications(announceUnemployed=false){
  const badge=$("profileNotificationBadge");if(!badge)return;
  const achievementCount=pendingAchievementNotices.length,unemployed=unemployedWorkerCount();
- const total=achievementCount+(unemployedNoticeUnread&&unemployed>0?1:0);
+ const total=achievementCount; // Il badge del profilo segnala soltanto obiettivi non ancora letti.
  badge.textContent=total>9?"9+":String(total);
  badge.hidden=total===0;
  badge.setAttribute("aria-hidden",String(total===0));
  const messages=[];
  if(achievementCount)messages.push(achievementCount+" obiettiv"+(achievementCount===1?"o completato":"i completati"));
- if(unemployedNoticeUnread&&unemployed>0)messages.push(unemployed+" lavorator"+(unemployed===1?"e disoccupato":"i disoccupati"));
+ // Gli avvisi dei lavoratori restano nella sezione Territorio → Popolazione.
  $("profileNav").title=messages.length? "Profilo · "+messages.join(" · "):"Profilo";
  $("profileNav").setAttribute("aria-label",messages.length?"Profilo, notifiche: "+messages.join(", "):"Profilo");
  if(announceUnemployed){
@@ -274,7 +274,12 @@ function renderProfileTab(tab){
  if(tab==="achievements"){
   const newlyUnlocked=new Set(pendingAchievementNotices);
   content.innerHTML='<div class="achievement-intro">Completa le sfide per costruire la tua storia da conquistatore.</div>'+achievementList().map(a=>'<article class="achievement-card '+(a.done?"is-unlocked":"is-locked")+(newlyUnlocked.has(a.id)?" is-new":"")+'"><span class="achievement-icon">'+a.icon+'</span><div class="achievement-copy"><strong>'+escHtml(a.title)+'</strong><p>'+escHtml(a.description)+'</p>'+(a.id==="walk_one_km"?'<div class="achievement-progress"><i style="width:'+Math.min(100,a.progress/10)+'%"></i></div><small>'+a.progress+' / 1.000 m</small>':'')+'</div><span class="achievement-status">'+(a.done?"✓":"🔒")+'</span></article>').join("");
-  if(newlyUnlocked.size){pendingAchievementNotices=[];savePlayerProgress();updateProfileNotifications(false)}
+  if(newlyUnlocked.size){
+   pendingAchievementNotices=[];
+   updateProfileNotifications(false);
+   // Salva l'avvenuta lettura; una nuova notifica arriverà solo per un nuovo obiettivo.
+   savePlayerProgress();
+  }
  }else{
   content.innerHTML='<div class="profile-overview"><div class="profile-summary"><div id="profileAvatar" class="profile-avatar">?</div><div><strong id="profileName">Giocatore</strong><small id="profileEmail"></small></div></div><div class="profile-details" id="profileDetails"></div><div class="avatar-editor"><label for="avatarFile">FOTO PROFILO</label><input id="avatarFile" type="file" accept="image/jpeg,image/png,image/webp" hidden><button id="avatarUploadBtn" class="auth-secondary" type="button">Carica / cambia avatar</button><small id="avatarUploadStatus">Carica una foto per farti riconoscere sulla mappa.</small></div><button id="profileLogout" class="auth-secondary">Esci dall’account</button></div>';
   const meta=currentUser?.user_metadata||{},name=playerName||displayName(currentUser),photo=meta.avatar_url||meta.picture||meta.photo_url||"";
