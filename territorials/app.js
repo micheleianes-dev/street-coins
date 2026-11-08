@@ -1,5 +1,5 @@
 /* TERRITORIALS — V2.4.1 notifiche profilo e lavoratori */
-let TEST_MODE=false;
+let TEST_MODE=true;
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
