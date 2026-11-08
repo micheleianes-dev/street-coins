@@ -311,7 +311,8 @@ async function analyzeAndStoreResources(zone,force=false){
  let result;
  try{
   result=await calculateTerritoryResources(zone.points);
-  result.social_facilities=await findSocialFacilities(zone.points);
+  const social=await findSocialFacilities(zone.points);
+  result.social_facilities=social.status==="ok"?social:(zone.resources?.social_facilities?.status==="ok"?zone.resources.social_facilities:social);
  }catch(error){
   console.error("Resource analysis:",error);
   result={status:"unknown",items:[],message:"Errore nel calcolo delle risorse.",details:String(error?.message||error).slice(0,350)};
@@ -441,14 +442,35 @@ function resourceMarkup(resources){
  const social=resources.social_facilities;
  const label=social?.status==="ok"?(social.count+" "+(social.count===1?"struttura rilevata":"strutture rilevate")):(social?.status==="unknown"?"Dati OSM non disponibili":"Ricerca non eseguita");
  const names=social?.status==="ok"&&social.facilities?.length?'<small>'+escHtml(social.facilities.map(f=>f.name+(f.subtype?" ("+f.subtype+")":"")).join(" · "))+'</small>':"";
- return base+'<div class="resource-row resource-social"><span class="resource-icon">🏥</span><div class="resource-copy"><strong>Strutture sociali (OSM)</strong><small>'+escHtml(label)+'</small>'+names+(social?.status==="unknown"?'<small>'+escHtml(social.details||"Servizio non raggiungibile")+'</small>':"")+'</div></div>';
+ return base+'<div class="resource-row resource-social"><span class="resource-icon">🏥</span><div class="resource-copy"><strong>Strutture sociali (OSM)</strong><small>'+escHtml(label)+'</small>'+names+(social?.status==="unknown"?'<small>'+escHtml(social.details||"Servizio non raggiungibile")+'</small>':"")+'</div></div>'+'<button type="button" class="auth-secondary retry-social-facilities">↻ Riprova solo strutture sociali</button>';
+}
+async function retrySocialFacilitiesOnly(){
+ const zone=savedTerritories.find(z=>z.owner_id===currentUser?.id);
+ if(!zone||zone.resources?.status!=="ok"){showToast("Prima completa l'analisi del territorio.");return}
+ const key=zone.id+":"+zone.created_at;
+ if(resourceAnalysesInFlight.has(key)){showToast("Analisi già in corso.");return}
+ resourceAnalysesInFlight.add(key);showToast("Ricerca strutture sociali OSM avviata.");
+ try{
+  const social=await findSocialFacilities(zone.points);
+  const latest=savedTerritories.find(z=>z.id===zone.id&&z.created_at===zone.created_at)||zone;
+  const old=latest.resources?.social_facilities;
+  const resources={...latest.resources,social_facilities:social.status==="ok"?social:(old?.status==="ok"?old:social)};
+  const {error}=await db.from("territorials_zones").update({resources}).eq("id",zone.id).eq("owner_id",zone.owner_id).eq("created_at",zone.created_at);
+  if(error)throw error;
+  latest.resources=resources;
+  if(document.querySelector('.territory-tab.active')?.dataset.tab==="resources"&&!$("territoryPanel").hidden)renderTerritoryTab("resources");
+  if(currentZoneDetailsId===zone.id&&!$("zoneModal").classList.contains("hidden"))$("zoneResources").innerHTML="<h3>Risorse di questo territorio</h3>"+resourceMarkup(resources);
+  showToast(social.status==="ok"?"Strutture sociali aggiornate: "+social.count:"Server OSM non disponibile: dati precedenti conservati.");
+ }catch(error){console.error("Social facility retry:",error);showToast("Impossibile salvare la ricerca OSM.")}
+ finally{resourceAnalysesInFlight.delete(key)}
 }
 async function retryOwnResourceAnalysis(){
  const zone=savedTerritories.find(z=>z.owner_id===currentUser?.id);
  if(!zone){showToast("Non hai un territorio da analizzare.");return}
  const key=zone.id+":"+zone.created_at;
  if(resourceAnalysesInFlight.has(key)){showToast("Analisi delle risorse già in corso.");return}
- const pending={status:"pending",items:[]};
+ const previous=zone.resources;
+ const pending={status:"pending",items:[],social_facilities:previous?.social_facilities};
  try{
   const {data,error}=await db.from("territorials_zones").update({resources:pending}).eq("id",zone.id).eq("owner_id",zone.owner_id).eq("created_at",zone.created_at).select("id").maybeSingle();
   if(error)throw error;
@@ -458,11 +480,12 @@ async function retryOwnResourceAnalysis(){
   const resourceTab=document.querySelector('.territory-tab.active');
   if(resourceTab?.dataset.tab==="resources"&&!$("territoryPanel").hidden)renderTerritoryTab("resources");
   showToast("Nuova analisi visiva della mappa avviata.");
-  analyzeAndStoreResources(zone,true);
+  analyzeAndStoreResources({...zone,resources:previous},true);
  }catch(error){console.error("Retry OSM:",error);showToast("Impossibile riavviare l’analisi.")}
 }
 document.addEventListener("click",event=>{
  if(event.target.closest(".retry-osm-analysis"))retryOwnResourceAnalysis();
+ if(event.target.closest(".retry-social-facilities"))retrySocialFacilitiesOnly();
 });
 function profileInitials(name){return String(name||"G").trim().split(/\s+/).slice(0,2).map(s=>s[0]||"").join("").toUpperCase()}
 function achievementList(){return [
