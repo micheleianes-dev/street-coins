@@ -1,4 +1,4 @@
-/* TERRITORIALS — V2.4.9 endpoint OSM aggiornati e nuova analisi manuale */
+/* TERRITORIALS — V2.5.0 analisi geografica OSM per quattro risorse */
 let TEST_MODE=true;
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
@@ -71,7 +71,7 @@ async function loadZones(){
  updatePositionBanner();
  updateTerritoryControls();
  if(currentUser)await loadColony();
- const pending=savedTerritories.find(z=>z.owner_id===currentUser?.id&&z.resources?.status==="pending");
+ const pending=savedTerritories.find(z=>z.owner_id===currentUser?.id&&(z.resources?.status==="pending"||z.resources?.status==="unknown"));
  if(pending)analyzeAndStoreResources(pending);
 }
 async function refreshSession(){
@@ -124,62 +124,128 @@ function territoryFeature(points){
  if(ring[0][0]!==ring[ring.length-1][0]||ring[0][1]!==ring[ring.length-1][1])ring.push(ring[0]);
  return turf.polygon([ring]);
 }
-function resourceClass(tags){
- if(tags.landuse==="forest"||tags.natural==="wood"||tags.landcover==="trees"||tags.leisure==="park"||tags.landuse==="grass"||tags.natural==="scrub"||tags.natural==="heath"||tags.natural==="grassland")return "forest";
- if(tags.landuse==="farmland"||tags.landuse==="meadow")return "food";
- if(tags.natural==="water")return "water";
- if(tags.building||tags.landuse==="industrial")return "materials";
- return null;
+function resourceClasses(tags){
+ const types=[];
+ if(tags.landuse==="forest"||tags.natural==="wood"||tags.landcover==="trees"||tags.natural==="tree"||tags.leisure==="park"||tags.natural==="scrub"||tags.natural==="heath"||tags.natural==="grassland"||tags.landuse==="grass")types.push("forest");
+ if(["farmland","farmyard","meadow","orchard","vineyard","allotments","greenhouse_horticulture"].includes(tags.landuse)||["grassland","meadow"].includes(tags.natural)||tags.crop||tags.produce||tags.garden==="vegetable"||tags.shop==="farm")types.push("food");
+ if(tags.building||["industrial","quarry","construction"].includes(tags.landuse)||tags.man_made==="works"||tags.man_made==="storage_tank")types.push("materials");
+ if(["water","wetland","spring"].includes(tags.natural)||tags.waterway||tags.landuse==="reservoir"||["drinking_water","fountain","watering_place"].includes(tags.amenity)||tags.man_made==="water_well")types.push("water");
+ return types;
 }
 const resourceAnalysesInFlight=new Set(),resourceAnalysesAttempted=new Set();
 async function fetchOverpassResources(query){
- const endpoints=["https://overpass.private.coffee/api/interpreter","https://overpass-api.de/api/interpreter","https://lz4.overpass-api.de/api/interpreter"];
- for(const endpoint of endpoints){
-  const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),20000);
+ const endpoints=[
+  {url:"https://overpass.private.coffee/api/interpreter",ms:28000},
+  {url:"https://overpass-api.de/api/interpreter",ms:18000}
+ ];
+ const errors=[];
+ for(const {url,ms} of endpoints){
+  const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),ms);
   try{
-   const response=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded;charset=UTF-8"},body:"data="+encodeURIComponent(query),signal:controller.signal});
-   if(!response.ok)throw new Error("Overpass HTTP "+response.status);
-   const result=await response.json();
-   if(result.remark&&/timeout|memory|runtime error/i.test(result.remark))throw new Error(result.remark);
-   if(!Array.isArray(result.elements))throw new Error("Risposta OSM non valida");
-   return result.elements;
-  }catch(error){console.warn("Overpass endpoint unavailable:",endpoint,error)}
-  finally{clearTimeout(timeout)}
+   const response=await fetch(url,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded;charset=UTF-8"},body:"data="+encodeURIComponent(query),signal:controller.signal});
+   if(!response.ok)throw new Error("HTTP "+response.status);
+   const data=await response.json();
+   if(!Array.isArray(data.elements))throw new Error(data.remark||"Formato OSM non valido");
+   if(data.remark&&/error|timeout|memory/i.test(data.remark))throw new Error(data.remark);
+   console.info("OSM resource analysis:",data.elements.length,"elements from",url);
+   return {elements:data.elements,server:url};
+  }catch(error){
+   errors.push(url+": "+(error.name==="AbortError"?"timeout":error.message));
+   console.warn("OSM endpoint error:",url,error);
+  }finally{clearTimeout(timeout)}
  }
- return null;
+ return {elements:null,errors};
+}
+function osmResourceGeometry(element){
+ const polygons=[],lines=[],points=[];
+ if(element.type==="node"){
+  if(Number.isFinite(element.lon)&&Number.isFinite(element.lat))points.push([element.lon,element.lat]);
+ }else if(element.type==="way"){
+  const coords=(element.geometry||[]).filter(p=>Number.isFinite(p.lon)&&Number.isFinite(p.lat)).map(p=>[p.lon,p.lat]);
+  if(coords.length>=2){
+   const closed=coords.length>=4&&coords[0][0]===coords[coords.length-1][0]&&coords[0][1]===coords[coords.length-1][1];
+   if(closed)polygons.push(coords);
+   else lines.push(coords);
+  }
+ }else if(element.type==="relation"){
+  for(const member of element.members||[]){
+   if(member.type!=="way"||!Array.isArray(member.geometry)||member.role==="inner")continue;
+   const coords=member.geometry.filter(p=>Number.isFinite(p.lon)&&Number.isFinite(p.lat)).map(p=>[p.lon,p.lat]);
+   if(coords.length>=4&&coords[0][0]===coords[coords.length-1][0]&&coords[0][1]===coords[coords.length-1][1])polygons.push(coords);
+   else if(coords.length>=2)lines.push(coords);
+  }
+ }
+ return {polygons,lines,points};
+}
+function pointInsideOsmRing(lon,lat,ring){
+ let inside=false;
+ for(let i=0,j=ring.length-1;i<ring.length;j=i++){
+  const a=ring[i],b=ring[j];
+  if((a[1]>lat)!==(b[1]>lat)&&lon<(b[0]-a[0])*(lat-a[1])/(b[1]-a[1])+a[0])inside=!inside;
+ }
+ return inside;
 }
 async function calculateTerritoryResources(points){
- if(!window.turf||!Array.isArray(points)||points.length<3)return {status:"unknown",items:[],message:"Analisi cartografica non disponibile."};
- const boundary=territoryFeature(points),territoryArea=turf.area(boundary);
- if(!Number.isFinite(territoryArea)||territoryArea<=0)return {status:"unknown",items:[],message:"Perimetro non valido."};
- // Una sola richiesta per i principali tag OSM, con bounding box al posto della lunga geometria GPS.
+ if(!Array.isArray(points)||points.length<3)return {status:"unknown",items:[],message:"Il perimetro non è valido."};
+ const territoryArea=area(points);
+ if(!Number.isFinite(territoryArea)||territoryArea<=0)return {status:"unknown",items:[],message:"La superficie non è valida."};
  const lats=points.map(p=>p.lat),lngs=points.map(p=>p.lng);
- const bbox=[Math.min(...lats),Math.min(...lngs),Math.max(...lats),Math.max(...lngs)].map(v=>v.toFixed(6)).join(",");
- const query='[out:json][timeout:18];(way["landuse"~"^(forest|grass|farmland|meadow|industrial)$"]('+bbox+');way["natural"~"^(wood|scrub|heath|grassland|water)$"]('+bbox+');way["landcover"="trees"]('+bbox+');way["leisure"="park"]('+bbox+');way["building"]('+bbox+'););out geom;';
- const elements=await fetchOverpassResources(query);
- if(!elements)return {status:"unknown",items:[],message:"OpenStreetMap non risponde entro il tempo massimo. Potrai riprovare in seguito."};
- const covered={forest:0,food:0,materials:0,water:0};
- // Limiti di lavoro per evitare lunghi blocchi su geometrie enormi o su aree molto dettagliate.
- let processed=0;
- for(const element of elements){
-  if(processed>=450)break;
-  if(element.type!=="way"||!Array.isArray(element.geometry)||element.geometry.length<4||element.geometry.length>1200)continue;
-  const kind=resourceClass(element.tags||{});if(!kind)continue;
-  const coords=element.geometry.map(p=>[p.lon,p.lat]);
-  if(coords.some(p=>!Number.isFinite(p[0])||!Number.isFinite(p[1])))continue;
-  if(coords[0][0]!==coords[coords.length-1][0]||coords[0][1]!==coords[coords.length-1][1])coords.push(coords[0]);
-  processed++;
-  try{
-   const clipped=turf.intersect(turf.featureCollection([turf.polygon([coords]),boundary]));
-   if(clipped)covered[kind]+=Math.max(0,turf.area(clipped));
-  }catch(e){/* OSM può includere geometrie incomplete: salta la singola way. */}
+ const south=Math.min(...lats),north=Math.max(...lats),west=Math.min(...lngs),east=Math.max(...lngs);
+ const bbox=[south,west,north,east].map(v=>v.toFixed(7)).join(",");
+ // Interroga OSM per aree verdi, colture, edifici e acqua. Include nodi e relazioni multipoligono.
+ const query='[out:json][timeout:26];('+
+  'nwr["landuse"~"^(forest|grass|farmland|farmyard|meadow|orchard|vineyard|allotments|greenhouse_horticulture|industrial|quarry|construction|reservoir)$"]('+bbox+');'+
+  'nwr["natural"~"^(wood|tree|scrub|heath|grassland|meadow|water|wetland|spring)$"]('+bbox+');'+
+  'nwr["landcover"="trees"]('+bbox+');'+
+  'nwr["leisure"="park"]('+bbox+');'+
+  'nwr["building"]('+bbox+');'+
+  'nwr["waterway"]('+bbox+');'+
+  'node["amenity"~"^(drinking_water|fountain|watering_place)$"]('+bbox+');'+
+  'node["man_made"="water_well"]('+bbox+');'+
+  ');out geom;';
+ const data=await fetchOverpassResources(query);
+ if(!data.elements)return {status:"unknown",items:[],message:"Server OpenStreetMap non raggiungibili. Riprova l’analisi.",details:(data.errors||[]).join(" | ").slice(0,350)};
+ const covered={forest:0,food:0,materials:0,water:0},seen={forest:false,food:false,materials:false,water:false};
+ // Una griglia di circa 8 m evita i costosi ritagli di poligoni, e conta ogni cella una sola volta per risorsa.
+ const midLat=(north+south)/2,metersPerLat=110540,metersPerLng=111320*Math.cos(midLat*Math.PI/180);
+ const width=Math.max(1,(east-west)*metersPerLng),height=Math.max(1,(north-south)*metersPerLat);
+ const nx=Math.max(1,Math.min(75,Math.ceil(width/8))),ny=Math.max(1,Math.min(75,Math.ceil(height/8)));
+ const samples=[];
+ for(let iy=0;iy<ny;iy++)for(let ix=0;ix<nx;ix++){
+  const lat=south+(iy+.5)/ny*(north-south),lng=west+(ix+.5)/nx*(east-west);
+  if(pointInPolygon({lat,lng},points))samples.push({lat,lng,types:new Set()});
  }
- const items=Object.entries(covered).filter(([,m2])=>m2>1).map(([type,m2])=>{
-  // La somma delle geometrie sovrapposte può sovrastimare: limita al territorio.
-  const amount=Math.min(territoryArea,m2);
-  return {type,label:RESOURCE_TYPES[type].label,icon:RESOURCE_TYPES[type].icon,area_m2:Math.round(amount),share_pct:Math.round(amount/territoryArea*1000)/10};
+ const sampleArea=samples.length?territoryArea/samples.length:0;
+ let processed=0;
+ for(const element of data.elements){
+  const types=resourceClasses(element.tags||{});
+  if(!types.length)continue;
+  const shape=osmResourceGeometry(element);
+  if(!shape.polygons.length&&!shape.lines.length&&!shape.points.length)continue;
+  processed++;
+  for(const type of types){
+   let hits=0;
+   for(const sample of samples){
+    if(sample.types.has(type))continue;
+    if(shape.polygons.some(ring=>pointInsideOsmRing(sample.lng,sample.lat,ring))){
+     sample.types.add(type);hits++;
+    }
+   }
+   if(hits)seen[type]=true;
+  }
+  // I punti OSM rappresentano risorse individuate ma non superfici cartografate.
+  for(const spot of shape.points.concat(shape.lines.flatMap(line=>[line[Math.floor(line.length/2)]]))){
+   if(pointInPolygon({lat:spot[1],lng:spot[0]},points))for(const type of types)seen[type]=true;
+  }
+  // Lascia respirare l'interfaccia anche con molte geometrie OSM.
+  if(processed%80===0)await new Promise(resolve=>setTimeout(resolve,0));
+ }
+ for(const sample of samples)for(const type of sample.types)covered[type]+=sampleArea;
+ const items=Object.keys(RESOURCE_TYPES).map(type=>{
+  const m2=Math.min(territoryArea,covered[type]);
+  return {type,label:RESOURCE_TYPES[type].label,icon:RESOURCE_TYPES[type].icon,area_m2:Math.round(m2),share_pct:Math.round(m2/territoryArea*1000)/10,detected:seen[type]||m2>0};
  });
- return {status:"ok",items,source:"OpenStreetMap",analyzed_at:new Date().toISOString()};
+ return {status:"ok",items,source:"OpenStreetMap",analyzed_at:new Date().toISOString(),sampled_points:samples.length,osm_elements:processed};
 }
 async function analyzeAndStoreResources(zone,force=false){
  if(!zone||zone.owner_id!==currentUser?.id||(!force&&zone.resources?.status!=="pending"))return;
@@ -313,7 +379,7 @@ function resourceMarkup(resources){
  if(resources?.status==="pending")return '<p class="resource-empty"><i class="resource-pending-indicator"></i> Analisi risorse in corso</p>';
  if(!resources||resources.status!=="ok")return '<p class="resource-empty">'+escHtml(resources?.message||"Nessuna informazione cartografica disponibile per questa zona.")+'</p><button type="button" class="auth-secondary retry-osm-analysis">↻ Riprova analisi OSM</button>';
  if(!resources.items?.length)return '<p class="resource-empty">Nessuna delle risorse mappate è stata rilevata in questa zona.</p>';
- return resources.items.map(r=>'<div class="resource-row resource-'+r.type+'"><span class="resource-icon">'+r.icon+'</span><div class="resource-copy"><strong>'+escHtml(r.label)+'</strong><small>'+fmtArea(r.area_m2)+' di superficie · '+r.share_pct+'%</small><span class="resource-meter"><i style="width:'+Math.min(100,r.share_pct)+'%"></i></span></div></div>').join("");
+ return resources.items.map(r=>'<div class="resource-row resource-'+r.type+'"><span class="resource-icon">'+r.icon+'</span><div class="resource-copy"><strong>'+escHtml(r.label)+'</strong><small>'+(r.detected===false?"Non rilevata nei dati OSM":r.area_m2>0?fmtArea(r.area_m2)+" di superficie · "+r.share_pct+"%":"Presenza rilevata su OSM (superficie non stimabile)")+'</small><span class="resource-meter"><i style="width:'+Math.min(100,r.share_pct)+'%"></i></span></div></div>').join("");
 }
 async function retryOwnResourceAnalysis(){
  const zone=savedTerritories.find(z=>z.owner_id===currentUser?.id);
