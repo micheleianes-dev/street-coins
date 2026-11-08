@@ -412,3 +412,14 @@ button:not(:disabled):active{transform:translateY(2px) scale(.985)}
 .achievement-card.is-new{position:relative;border:2px solid #e5a52d;background:#fff1c9;box-shadow:0 0 0 3px #e5a52d30,0 5px 16px #b7791830;animation:achievementFirstView 1.5s ease-out 2}
 .achievement-card.is-new:after{content:"NUOVO";position:absolute;top:-8px;right:9px;padding:3px 7px;border-radius:7px;background:#e5a52d;color:#35230b;font-size:8px;font-weight:950;letter-spacing:.7px}
 @keyframes achievementFirstView{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+
+
+/* V2.4.3 — contrasto analisi risorse e icona mura */
+.territory-resource-pending{color:#ffffff;font-size:9px;font-weight:900;text-shadow:0 1px 3px #07111c,0 0 5px #07111c}
+.territory-resource-pending i,.resource-pending-indicator{border-color:#ffffff55;border-top-color:#ffffff;filter:drop-shadow(0 0 2px #07111c)}
+.resource-pending-indicator{vertical-align:-1px}
+.zone-resources h3{color:#9aa8b4!important}
+.wall-route-icon{width:30px;height:30px;color:#fff;filter:drop-shadow(0 1px 2px #07111c)}
+.wall-route-icon svg{width:30px;height:30px;overflow:visible}
+#exploreNav{background:#30485b;border-color:#f4c95d88}
+#exploreNav.active{background:#174638;border-color:#65f0cf;color:#fff;box-shadow:0 0 0 2px #65f0cf44,0 0 13px #65f0cf55}
