@@ -1,4 +1,4 @@
-/* TERRITORIALS — V2.6.0 analisi visiva della mappa */
+/* TERRITORIALS — V2.6.1 conteggio OSM social facility */
 let TEST_MODE=true;
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
@@ -273,6 +273,31 @@ async function calculateTerritoryResources(points){
   return {status:"unknown",items:[],message:"Non è stato possibile leggere i colori della mappa.",details:String(error.message||error)};
  }
 }
+async function findSocialFacilities(points){
+ const lats=points.map(p=>p.lat),lngs=points.map(p=>p.lng),bbox=[Math.min(...lats),Math.min(...lngs),Math.max(...lats),Math.max(...lngs)].map(v=>v.toFixed(7)).join(",");
+ const query='[out:json][timeout:15];nwr["amenity"="social_facility"]('+bbox+');out center;';
+ const errors=[];
+ for(const server of ["https://overpass-api.de/api/interpreter","https://overpass.private.coffee/api/interpreter"]){
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),18000);
+  try{
+   const response=await fetch(server,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:"data="+encodeURIComponent(query),signal:controller.signal});
+   if(!response.ok)throw new Error("HTTP "+response.status);
+   const json=await response.json();if(!Array.isArray(json.elements)||json.remark)throw new Error(json.remark||"Risposta non valida");
+   const facilities=[],ids=new Set();
+   for(const item of json.elements){
+    const p=item.type==="node"?item:item.center;
+    if(!p||!Number.isFinite(p.lat)||!Number.isFinite(p.lon)||!pointInPolygon({lat:p.lat,lng:p.lon},points))continue;
+    const id=item.type+"/"+item.id;if(ids.has(id))continue;ids.add(id);
+    const name=String(item.tags?.name||"Struttura sociale").trim();
+    if(facilities.some(f=>f.name===name&&name!=="Struttura sociale"&&Math.hypot((f.lat-p.lat)*110540,(f.lng-p.lon)*111320*Math.cos(p.lat*Math.PI/180))<25))continue;
+    facilities.push({id,name,lat:p.lat,lng:p.lon,subtype:item.tags?.social_facility||""});
+   }
+   return {status:"ok",count:facilities.length,facilities,source:"OpenStreetMap",analyzed_at:new Date().toISOString()};
+  }catch(error){errors.push(new URL(server).hostname+": "+(error.name==="AbortError"?"timeout":error.message))}
+  finally{clearTimeout(timer)}
+ }
+ return {status:"unknown",count:null,facilities:[],details:errors.join(" | ")};
+}
 async function analyzeAndStoreResources(zone,force=false){
  if(!zone||zone.owner_id!==currentUser?.id||(!force&&!["pending","unknown"].includes(zone.resources?.status)))return;
  const key=zone.id+":"+zone.created_at;
@@ -281,6 +306,7 @@ async function analyzeAndStoreResources(zone,force=false){
  let result;
  try{
   result=await calculateTerritoryResources(zone.points);
+  result.social_facilities=await findSocialFacilities(zone.points);
  }catch(error){
   console.error("Resource analysis:",error);
   result={status:"unknown",items:[],message:"Errore nel calcolo delle risorse.",details:String(error?.message||error).slice(0,350)};
@@ -405,7 +431,11 @@ function resourceMarkup(resources){
  if(resources?.status==="pending")return '<p class="resource-empty"><i class="resource-pending-indicator"></i> Analisi risorse in corso</p>';
  if(!resources||resources.status!=="ok")return '<p class="resource-empty">'+escHtml(resources?.message||"Nessuna informazione cartografica disponibile per questa zona.")+'</p>'+(resources?.details?'<p class="resource-empty"><small>Dettagli tecnici: '+escHtml(resources.details)+'</small></p>':"")+'<button type="button" class="auth-secondary retry-osm-analysis">↻ Riprova analisi della mappa</button>';
  if(!resources.items?.length)return '<p class="resource-empty">Nessuna delle risorse mappate è stata rilevata in questa zona.</p>';
- return resources.items.map(r=>'<div class="resource-row resource-'+r.type+'"><span class="resource-icon">'+r.icon+'</span><div class="resource-copy"><strong>'+escHtml(r.label)+'</strong><small>'+(r.detected===false?"Non rilevata nei dati OSM":r.area_m2>0?fmtArea(r.area_m2)+" di superficie · "+r.share_pct+"%":"Presenza rilevata su OSM (superficie non stimabile)")+'</small><span class="resource-meter"><i style="width:'+Math.min(100,r.share_pct)+'%"></i></span></div></div>').join("");
+ const base=resources.items.map(r=>'<div class="resource-row resource-'+r.type+'"><span class="resource-icon">'+r.icon+'</span><div class="resource-copy"><strong>'+escHtml(r.label)+'</strong><small>'+(r.detected===false?"Non rilevata nei dati OSM":r.area_m2>0?fmtArea(r.area_m2)+" di superficie · "+r.share_pct+"%":"Presenza rilevata su OSM (superficie non stimabile)")+'</small><span class="resource-meter"><i style="width:'+Math.min(100,r.share_pct)+'%"></i></span></div></div>').join("");
+ const social=resources.social_facilities;
+ const label=social?.status==="ok"?(social.count+" "+(social.count===1?"struttura rilevata":"strutture rilevate")):(social?.status==="unknown"?"Dati OSM non disponibili":"Ricerca non eseguita");
+ const names=social?.status==="ok"&&social.facilities?.length?'<small>'+escHtml(social.facilities.map(f=>f.name+(f.subtype?" ("+f.subtype+")":"")).join(" · "))+'</small>':"";
+ return base+'<div class="resource-row resource-social"><span class="resource-icon">🏥</span><div class="resource-copy"><strong>Strutture sociali (OSM)</strong><small>'+escHtml(label)+'</small>'+names+(social?.status==="unknown"?'<small>'+escHtml(social.details||"Servizio non raggiungibile")+'</small>':"")+'</div></div>';
 }
 async function retryOwnResourceAnalysis(){
  const zone=savedTerritories.find(z=>z.owner_id===currentUser?.id);
