@@ -1,4 +1,4 @@
-/* TERRITORIALS — V2.6.1 conteggio OSM social facility */
+/* TERRITORIALS — V2.6.2 strutture sociali per intersezione */
 let TEST_MODE=true;
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
@@ -275,22 +275,27 @@ async function calculateTerritoryResources(points){
 }
 async function findSocialFacilities(points){
  const lats=points.map(p=>p.lat),lngs=points.map(p=>p.lng),bbox=[Math.min(...lats),Math.min(...lngs),Math.max(...lats),Math.max(...lngs)].map(v=>v.toFixed(7)).join(",");
- const query='[out:json][timeout:15];nwr["amenity"="social_facility"]('+bbox+');out center;';
+ const query='[out:json][timeout:20];nwr["amenity"="social_facility"]('+bbox+');out geom;';
  const errors=[];
  for(const server of ["https://overpass-api.de/api/interpreter","https://overpass.private.coffee/api/interpreter"]){
-  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),18000);
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),25000);
   try{
    const response=await fetch(server,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:"data="+encodeURIComponent(query),signal:controller.signal});
    if(!response.ok)throw new Error("HTTP "+response.status);
    const json=await response.json();if(!Array.isArray(json.elements)||json.remark)throw new Error(json.remark||"Risposta non valida");
    const facilities=[],ids=new Set();
    for(const item of json.elements){
+    const shape=osmResourceGeometry(item);
     const p=item.type==="node"?item:item.center;
-    if(!p||!Number.isFinite(p.lat)||!Number.isFinite(p.lon)||!pointInPolygon({lat:p.lat,lng:p.lon},points))continue;
+    const centerInside=p&&Number.isFinite(p.lat)&&Number.isFinite(p.lon)&&pointInPolygon({lat:p.lat,lng:p.lon},points);
+    const vertexInside=shape.polygons.some(ring=>ring.some(([lng,lat])=>pointInPolygon({lat,lng},points)));
+    const polygonInside=shape.polygons.some(ring=>points.some(v=>pointInsideOsmRing(v.lng,v.lat,ring)));
+    const lineInside=shape.lines.some(line=>line.some(([lng,lat])=>pointInPolygon({lat,lng},points)));
+    if(!centerInside&&!vertexInside&&!polygonInside&&!lineInside)continue;
     const id=item.type+"/"+item.id;if(ids.has(id))continue;ids.add(id);
     const name=String(item.tags?.name||"Struttura sociale").trim();
-    if(facilities.some(f=>f.name===name&&name!=="Struttura sociale"&&Math.hypot((f.lat-p.lat)*110540,(f.lng-p.lon)*111320*Math.cos(p.lat*Math.PI/180))<25))continue;
-    facilities.push({id,name,lat:p.lat,lng:p.lon,subtype:item.tags?.social_facility||""});
+    if(facilities.some(f=>f.name===name&&name!=="Struttura sociale"&&false))continue;
+    facilities.push({id,name,subtype:item.tags?.social_facility||"",osm_type:item.type});
    }
    return {status:"ok",count:facilities.length,facilities,source:"OpenStreetMap",analyzed_at:new Date().toISOString()};
   }catch(error){errors.push(new URL(server).hostname+": "+(error.name==="AbortError"?"timeout":error.message))}
@@ -319,6 +324,7 @@ async function analyzeAndStoreResources(zone,force=false){
    const local=savedTerritories.find(z=>z.id===zone.id&&z.created_at===zone.created_at);
    if(local)local.resources=result;
    await loadZones();
+   if(document.querySelector('.territory-tab.active')?.dataset.tab==="resources"&&!$("territoryPanel").hidden)renderTerritoryTab("resources");
    if(currentZoneDetailsId===zone.id&&!$("zoneModal").classList.contains("hidden"))$("zoneResources").innerHTML="<h3>Risorse di questo territorio</h3>"+resourceMarkup(result);
    showToast(result.status==="ok"?"Analisi visiva completata: quattro categorie di risorse.":"Analisi OSM non riuscita. Apri Risorse e premi Riprova.");
   }
