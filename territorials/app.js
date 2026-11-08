@@ -273,35 +273,38 @@ async function calculateTerritoryResources(points){
   return {status:"unknown",items:[],message:"Non è stato possibile leggere i colori della mappa.",details:String(error.message||error)};
  }
 }
-async function findSocialFacilities(points){
- const lats=points.map(p=>p.lat),lngs=points.map(p=>p.lng),bbox=[Math.min(...lats),Math.min(...lngs),Math.max(...lats),Math.max(...lngs)].map(v=>v.toFixed(7)).join(",");
- const query='[out:json][timeout:20];nwr["amenity"="social_facility"]('+bbox+');out geom;';
+// Catalogo dei POI cartografici: una richiesta bbox per tutti i tag iconografici principali.
+const POI_KEYS=["amenity","shop","tourism","leisure","historic","healthcare","emergency","office","craft","man_made","aeroway","railway","public_transport"];
+const POI_LABELS={social_facility:"Struttura sociale",hospital:"Ospedale",clinic:"Clinica",doctors:"Medico",pharmacy:"Farmacia",school:"Scuola",kindergarten:"Asilo",university:"Università",college:"Istituto",library:"Biblioteca",restaurant:"Ristorante",cafe:"Bar/caffetteria",fast_food:"Fast food",drinking_water:"Acqua potabile",fountain:"Fontana",place_of_worship:"Luogo di culto",community_centre:"Centro comunitario",police:"Polizia",fire_station:"Vigili del fuoco",post_office:"Ufficio postale",bank:"Banca",atm:"Bancomat",fuel:"Distributore",parking:"Parcheggio",museum:"Museo",hotel:"Hotel",supermarket:"Supermercato",playground:"Parco giochi",cinema:"Cinema",theatre:"Teatro",castle:"Castello",memorial:"Memoriale",monument:"Monumento",bus_station:"Autostazione"};
+function poiLabel(key,value){return POI_LABELS[value]||value.replace(/_/g," ").replace(/^./,c=>c.toUpperCase())+" ("+key+")"}
+async function findTerritoryPois(points){
+ const lats=points.map(p=>p.lat),lngs=points.map(p=>p.lng);
+ const bbox=[Math.min(...lats),Math.min(...lngs),Math.max(...lats),Math.max(...lngs)].map(v=>v.toFixed(7)).join(",");
+ const query='[out:json][timeout:18];nwr["^(amenity|shop|tourism|leisure|historic|healthcare|emergency|office|craft|man_made|aeroway|railway|public_transport)$"~"."]('+bbox+');out center;';
  const errors=[];
- for(const server of ["https://overpass-api.de/api/interpreter","https://overpass.private.coffee/api/interpreter"]){
-  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),25000);
+ for(const server of ["https://overpass.private.coffee/api/interpreter","https://overpass-api.de/api/interpreter"]){
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),22000);
   try{
    const response=await fetch(server,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:"data="+encodeURIComponent(query),signal:controller.signal});
    if(!response.ok)throw new Error("HTTP "+response.status);
-   const json=await response.json();if(!Array.isArray(json.elements)||json.remark)throw new Error(json.remark||"Risposta non valida");
+   const json=await response.json();if(!Array.isArray(json.elements)||json.remark)throw new Error(json.remark||"Risposta OSM non valida");
    const facilities=[],ids=new Set();
    for(const item of json.elements){
-    const shape=osmResourceGeometry(item);
     const p=item.type==="node"?item:item.center;
-    const centerInside=p&&Number.isFinite(p.lat)&&Number.isFinite(p.lon)&&pointInPolygon({lat:p.lat,lng:p.lon},points);
-    const vertexInside=shape.polygons.some(ring=>ring.some(([lng,lat])=>pointInPolygon({lat,lng},points)));
-    const polygonInside=shape.polygons.some(ring=>points.some(v=>pointInsideOsmRing(v.lng,v.lat,ring)));
-    const lineInside=shape.lines.some(line=>line.some(([lng,lat])=>pointInPolygon({lat,lng},points)));
-    if(!centerInside&&!vertexInside&&!polygonInside&&!lineInside)continue;
+    if(!p||!Number.isFinite(p.lat)||!Number.isFinite(p.lon)||!pointInPolygon({lat:p.lat,lng:p.lon},points))continue;
     const id=item.type+"/"+item.id;if(ids.has(id))continue;ids.add(id);
-    const name=String(item.tags?.name||"Struttura sociale").trim();
-    if(facilities.some(f=>f.name===name&&name!=="Struttura sociale"&&false))continue;
-    facilities.push({id,name,subtype:item.tags?.social_facility||"",osm_type:item.type});
+    const tags=item.tags||{},key=POI_KEYS.find(k=>tags[k]);
+    if(!key)continue;
+    const value=tags[key],name=String(tags.name||poiLabel(key,value));
+    facilities.push({id,key,value,name,label:poiLabel(key,value)});
    }
-   return {status:"ok",count:facilities.length,facilities,source:"OpenStreetMap",analyzed_at:new Date().toISOString()};
+   const counts={};
+   for(const f of facilities){const k=f.key+"="+f.value;if(!counts[k])counts[k]={key:f.key,value:f.value,label:f.label,count:0};counts[k].count++}
+   return {status:"ok",count:facilities.length,facilities,counts:Object.values(counts).sort((a,b)=>b.count-a.count),source:"OpenStreetMap",analyzed_at:new Date().toISOString()};
   }catch(error){errors.push(new URL(server).hostname+": "+(error.name==="AbortError"?"timeout":error.message))}
   finally{clearTimeout(timer)}
  }
- return {status:"unknown",count:null,facilities:[],details:errors.join(" | ")};
+ return {status:"unknown",count:null,facilities:[],counts:[],details:errors.join(" | ")};
 }
 async function analyzeAndStoreResources(zone,force=false){
  if(!zone||zone.owner_id!==currentUser?.id||(!force&&!["pending","unknown"].includes(zone.resources?.status)))return;
@@ -311,8 +314,8 @@ async function analyzeAndStoreResources(zone,force=false){
  let result;
  try{
   result=await calculateTerritoryResources(zone.points);
-  const social=await findSocialFacilities(zone.points);
-  result.social_facilities=social.status==="ok"?social:(zone.resources?.social_facilities?.status==="ok"?zone.resources.social_facilities:social);
+  const pois=await findTerritoryPois(zone.points);
+  result.poi_features=pois.status==="ok"?pois:(zone.resources?.poi_features?.status==="ok"?zone.resources.poi_features:pois);
  }catch(error){
   console.error("Resource analysis:",error);
   result={status:"unknown",items:[],message:"Errore nel calcolo delle risorse.",details:String(error?.message||error).slice(0,350)};
@@ -439,30 +442,11 @@ function resourceMarkup(resources){
  if(!resources||resources.status!=="ok")return '<p class="resource-empty">'+escHtml(resources?.message||"Nessuna informazione cartografica disponibile per questa zona.")+'</p>'+(resources?.details?'<p class="resource-empty"><small>Dettagli tecnici: '+escHtml(resources.details)+'</small></p>':"")+'<button type="button" class="auth-secondary retry-osm-analysis">↻ Riprova analisi della mappa</button>';
  if(!resources.items?.length)return '<p class="resource-empty">Nessuna delle risorse mappate è stata rilevata in questa zona.</p>';
  const base=resources.items.map(r=>'<div class="resource-row resource-'+r.type+'"><span class="resource-icon">'+r.icon+'</span><div class="resource-copy"><strong>'+escHtml(r.label)+'</strong><small>'+(r.detected===false?"Non rilevata nei dati OSM":r.area_m2>0?fmtArea(r.area_m2)+" di superficie · "+r.share_pct+"%":"Presenza rilevata su OSM (superficie non stimabile)")+'</small><span class="resource-meter"><i style="width:'+Math.min(100,r.share_pct)+'%"></i></span></div></div>').join("");
- const social=resources.social_facilities;
- const label=social?.status==="ok"?(social.count+" "+(social.count===1?"struttura rilevata":"strutture rilevate")):(social?.status==="unknown"?"Dati OSM non disponibili":"Ricerca non eseguita");
- const names=social?.status==="ok"&&social.facilities?.length?'<small>'+escHtml(social.facilities.map(f=>f.name+(f.subtype?" ("+f.subtype+")":"")).join(" · "))+'</small>':"";
- return base+'<div class="resource-row resource-social"><span class="resource-icon">🏥</span><div class="resource-copy"><strong>Strutture sociali (OSM)</strong><small>'+escHtml(label)+'</small>'+names+(social?.status==="unknown"?'<small>'+escHtml(social.details||"Servizio non raggiungibile")+'</small>':"")+'</div></div>'+'<button type="button" class="auth-secondary retry-social-facilities">↻ Riprova solo strutture sociali</button>';
-}
-async function retrySocialFacilitiesOnly(){
- const zone=savedTerritories.find(z=>z.owner_id===currentUser?.id);
- if(!zone||zone.resources?.status!=="ok"){showToast("Prima completa l'analisi del territorio.");return}
- const key=zone.id+":"+zone.created_at;
- if(resourceAnalysesInFlight.has(key)){showToast("Analisi già in corso.");return}
- resourceAnalysesInFlight.add(key);showToast("Ricerca strutture sociali OSM avviata.");
- try{
-  const social=await findSocialFacilities(zone.points);
-  const latest=savedTerritories.find(z=>z.id===zone.id&&z.created_at===zone.created_at)||zone;
-  const old=latest.resources?.social_facilities;
-  const resources={...latest.resources,social_facilities:social.status==="ok"?social:(old?.status==="ok"?old:social)};
-  const {error}=await db.from("territorials_zones").update({resources}).eq("id",zone.id).eq("owner_id",zone.owner_id).eq("created_at",zone.created_at);
-  if(error)throw error;
-  latest.resources=resources;
-  if(document.querySelector('.territory-tab.active')?.dataset.tab==="resources"&&!$("territoryPanel").hidden)renderTerritoryTab("resources");
-  if(currentZoneDetailsId===zone.id&&!$("zoneModal").classList.contains("hidden"))$("zoneResources").innerHTML="<h3>Risorse di questo territorio</h3>"+resourceMarkup(resources);
-  showToast(social.status==="ok"?"Strutture sociali aggiornate: "+social.count:"Server OSM non disponibile: dati precedenti conservati.");
- }catch(error){console.error("Social facility retry:",error);showToast("Impossibile salvare la ricerca OSM.")}
- finally{resourceAnalysesInFlight.delete(key)}
+ const pois=resources.poi_features;
+ if(!pois)return base+'<p class="resource-empty">Punti di interesse OSM: analisi non ancora eseguita.</p>';
+ if(pois.status!=="ok")return base+'<p class="resource-empty">Punti di interesse OSM non disponibili: '+escHtml(pois.details||"Server non raggiungibile")+'</p>';
+ const rows=(pois.counts||[]).map(p=>'<div class="resource-row resource-poi"><span class="resource-icon">📍</span><div class="resource-copy"><strong>'+escHtml(p.label)+'</strong><small>'+escHtml(p.key+"="+p.value)+'</small></div><strong>'+p.count+'</strong></div>').join("");
+ return base+'<h3>📍 Strutture e punti di interesse OSM ('+pois.count+')</h3>'+(rows||'<p class="resource-empty">Nessun punto di interesse OSM rilevato.</p>');
 }
 async function retryOwnResourceAnalysis(){
  const zone=savedTerritories.find(z=>z.owner_id===currentUser?.id);
@@ -470,7 +454,7 @@ async function retryOwnResourceAnalysis(){
  const key=zone.id+":"+zone.created_at;
  if(resourceAnalysesInFlight.has(key)){showToast("Analisi delle risorse già in corso.");return}
  const previous=zone.resources;
- const pending={status:"pending",items:[],social_facilities:previous?.social_facilities};
+ const pending={status:"pending",items:[],poi_features:previous?.poi_features};
  try{
   const {data,error}=await db.from("territorials_zones").update({resources:pending}).eq("id",zone.id).eq("owner_id",zone.owner_id).eq("created_at",zone.created_at).select("id").maybeSingle();
   if(error)throw error;
@@ -485,7 +469,7 @@ async function retryOwnResourceAnalysis(){
 }
 document.addEventListener("click",event=>{
  if(event.target.closest(".retry-osm-analysis"))retryOwnResourceAnalysis();
- if(event.target.closest(".retry-social-facilities"))retrySocialFacilitiesOnly();
+
 });
 function profileInitials(name){return String(name||"G").trim().split(/\s+/).slice(0,2).map(s=>s[0]||"").join("").toUpperCase()}
 function achievementList(){return [
