@@ -62,7 +62,7 @@ async function loadZones(){
   const poly=L.polygon(z.points,{color,weight:own?4:3,opacity:.98,dashArray:own?"3 6":"10 5 2 5",lineCap:"round",lineJoin:"round",fillColor:color,fillOpacity:own?0.2:0.13,className:own?"territory-glow territory-own":"territory-glow territory-rival"}).addTo(drawnLayer);
   const center=poly.getBounds().getCenter(),territoryName=z.territory_name||("Territorio di "+(z.owner_name||"Giocatore"));
   const avatar=z.owner_avatar_url||"",avatarMarkup=avatar?'<img src="'+escHtml(avatar)+'" alt="">':'<span>'+escHtml(profileInitials(z.owner_name))+'</span>';
-  const resourceIcons=(z.resources?.status==="ok"?(z.resources.items||[]):[]).filter(r=>RESOURCE_TYPES[r.type]).map(r=>'<span title="'+escHtml(r.label||RESOURCE_TYPES[r.type].label)+'">'+RESOURCE_TYPES[r.type].icon+'</span>').join("");
+  const resourceIcons=(z.resources?.status==="ok"?(z.resources.items||[]):[]).filter(r=>RESOURCE_TYPES[r.type]&&r.detected!==false).map(r=>'<span title="'+escHtml(r.label||RESOURCE_TYPES[r.type].label)+'">'+RESOURCE_TYPES[r.type].icon+'</span>').join("");
   const resourceMarkup=resourceIcons?'<span class="territory-label-resources">'+resourceIcons+'</span>':"";
   const resourcePending=z.resources?.status==="pending"?'<span class="territory-resource-pending"><i></i>Analisi risorse in corso</span>':"";
   L.marker(center,{interactive:true,keyboard:false,icon:L.divIcon({className:"territory-label-wrap",html:'<div class="territory-map-label '+(own?"is-own":"is-rival")+'">'+avatarMarkup+'<span class="territory-label-copy"><strong>'+escHtml(territoryName)+'</strong><small>'+escHtml(z.owner_name||"Giocatore")+'</small>'+resourceMarkup+resourcePending+'</span></div>',iconSize:[280,60],iconAnchor:[140,30]})}).addTo(drawnLayer);
@@ -268,7 +268,7 @@ async function analyzeAndStoreResources(zone,force=false){
    if(local)local.resources=result;
    await loadZones();
    if(currentZoneDetailsId===zone.id&&!$("zoneModal").classList.contains("hidden"))$("zoneResources").innerHTML="<h3>Risorse di questo territorio</h3>"+resourceMarkup(result);
-   showToast(result.status==="ok"?"Analisi delle risorse completata.":"Analisi OSM non riuscita. Apri Risorse e premi Riprova.");
+   showToast(result.status==="ok"?"Risorse OSM analizzate: legname, cibo, materiali e acqua.":"Analisi OSM non riuscita. Apri Risorse e premi Riprova.");
   }
  }catch(error){
   console.error("Resource save:",error);
@@ -304,7 +304,7 @@ function updateProfileNotifications(announceUnemployed=false){
 function colonyResourceTypes(){
  const own=savedTerritories.find(z=>z.owner_id===currentUser?.id);
  if(!own||own.resources?.status!=="ok")return [];
- return (own.resources.items||[]).map(r=>r.type).filter((v,i,a)=>RESOURCE_TYPES[v]&&a.indexOf(v)===i);
+ return (own.resources.items||[]).filter(r=>r.detected!==false).map(r=>r.type).filter((v,i,a)=>RESOURCE_TYPES[v]&&a.indexOf(v)===i);
 }
 function colonyTotalsAssigned(){return colonyResourceTypes().reduce((s,type)=>s+(Number(colony.assignments?.[type])||0),0)}
 function renderColony(){
