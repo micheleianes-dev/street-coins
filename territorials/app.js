@@ -1,4 +1,4 @@
-/* TERRITORIALS — V2.5.0 analisi geografica OSM per quattro risorse */
+/* TERRITORIALS — V2.5.1 diagnostica e avvio OSM indipendente dalla colonia */
 let TEST_MODE=true;
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
@@ -70,9 +70,10 @@ async function loadZones(){
  });
  updatePositionBanner();
  updateTerritoryControls();
- if(currentUser)await loadColony();
  const pending=savedTerritories.find(z=>z.owner_id===currentUser?.id&&(z.resources?.status==="pending"||z.resources?.status==="unknown"));
  if(pending)analyzeAndStoreResources(pending);
+ // Una difficoltà nel caricamento della colonia non deve bloccare l'analisi delle risorse.
+ if(currentUser)try{await loadColony()}catch(error){console.warn("Colony load:",error)}
 }
 async function refreshSession(){
  const {data:{session},error}=await db.auth.getSession();if(error)throw error;
@@ -135,14 +136,21 @@ function resourceClasses(tags){
 const resourceAnalysesInFlight=new Set(),resourceAnalysesAttempted=new Set();
 async function fetchOverpassResources(query){
  const endpoints=[
-  {url:"https://overpass.private.coffee/api/interpreter",ms:28000},
-  {url:"https://overpass-api.de/api/interpreter",ms:18000}
+  {url:"https://overpass.private.coffee/api/interpreter",ms:25000},
+  {url:"https://overpass-api.de/api/interpreter",ms:20000}
  ];
  const errors=[];
  for(const {url,ms} of endpoints){
   const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),ms);
   try{
-   const response=await fetch(url,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded;charset=UTF-8"},body:"data="+encodeURIComponent(query),signal:controller.signal});
+   let response;
+   try{
+    response=await fetch(url,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:"data="+encodeURIComponent(query),signal:controller.signal});
+   }catch(postError){
+    if(controller.signal.aborted)throw postError;
+    // Alcuni server/proxy bloccano le richieste POST provenienti dalle pagine statiche.
+    response=await fetch(url+"?data="+encodeURIComponent(query),{method:"GET",signal:controller.signal});
+   }
    if(!response.ok)throw new Error("HTTP "+response.status);
    const data=await response.json();
    if(!Array.isArray(data.elements))throw new Error(data.remark||"Formato OSM non valido");
@@ -150,7 +158,8 @@ async function fetchOverpassResources(query){
    console.info("OSM resource analysis:",data.elements.length,"elements from",url);
    return {elements:data.elements,server:url};
   }catch(error){
-   errors.push(url+": "+(error.name==="AbortError"?"timeout":error.message));
+   const reason=error.name==="AbortError"?"timeout "+Math.round(ms/1000)+"s":error.message||"errore rete/CORS";
+   errors.push(new URL(url).hostname+": "+reason);
    console.warn("OSM endpoint error:",url,error);
   }finally{clearTimeout(timeout)}
  }
@@ -204,7 +213,7 @@ async function calculateTerritoryResources(points){
   'node["man_made"="water_well"]('+bbox+');'+
   ');out geom;';
  const data=await fetchOverpassResources(query);
- if(!data.elements)return {status:"unknown",items:[],message:"Server OpenStreetMap non raggiungibili. Riprova l’analisi.",details:(data.errors||[]).join(" | ").slice(0,350)};
+ if(!data.elements)return {status:"unknown",items:[],message:"Non è stato possibile contattare OpenStreetMap.",details:(data.errors||[]).join(" | ").slice(0,700)};
  const covered={forest:0,food:0,materials:0,water:0},seen={forest:false,food:false,materials:false,water:false};
  // Una griglia di circa 8 m evita i costosi ritagli di poligoni, e conta ogni cella una sola volta per risorsa.
  const midLat=(north+south)/2,metersPerLat=110540,metersPerLng=111320*Math.cos(midLat*Math.PI/180);
@@ -248,7 +257,7 @@ async function calculateTerritoryResources(points){
  return {status:"ok",items,source:"OpenStreetMap",analyzed_at:new Date().toISOString(),sampled_points:samples.length,osm_elements:processed};
 }
 async function analyzeAndStoreResources(zone,force=false){
- if(!zone||zone.owner_id!==currentUser?.id||(!force&&zone.resources?.status!=="pending"))return;
+ if(!zone||zone.owner_id!==currentUser?.id||(!force&&!["pending","unknown"].includes(zone.resources?.status)))return;
  const key=zone.id+":"+zone.created_at;
  if(resourceAnalysesInFlight.has(key)||(!force&&resourceAnalysesAttempted.has(key)))return;
  resourceAnalysesInFlight.add(key);resourceAnalysesAttempted.add(key);
@@ -257,7 +266,7 @@ async function analyzeAndStoreResources(zone,force=false){
   result=await calculateTerritoryResources(zone.points);
  }catch(error){
   console.error("Resource analysis:",error);
-  result={status:"unknown",items:[],message:"Impossibile completare l’analisi OpenStreetMap."};
+  result={status:"unknown",items:[],message:"Errore nel calcolo delle risorse.",details:String(error?.message||error).slice(0,350)};
  }
  try{
   // Evita che un risultato vecchio sovrascriva una conquista successiva dello stesso utente.
@@ -273,7 +282,7 @@ async function analyzeAndStoreResources(zone,force=false){
  }catch(error){
   console.error("Resource save:",error);
   const local=savedTerritories.find(z=>z.id===zone.id&&z.created_at===zone.created_at);
-  if(local)local.resources={status:"unknown",items:[],message:"Analisi non disponibile: impossibile salvare il risultato."};
+  if(local)local.resources={status:"unknown",items:[],message:"Analisi non disponibile: impossibile salvare il risultato.",details:String(error?.message||error).slice(0,350)};
  }finally{resourceAnalysesInFlight.delete(key)}
 }
 function unemployedWorkerCount(){
@@ -377,7 +386,7 @@ document.addEventListener("visibilitychange",()=>{
 });
 function resourceMarkup(resources){
  if(resources?.status==="pending")return '<p class="resource-empty"><i class="resource-pending-indicator"></i> Analisi risorse in corso</p>';
- if(!resources||resources.status!=="ok")return '<p class="resource-empty">'+escHtml(resources?.message||"Nessuna informazione cartografica disponibile per questa zona.")+'</p><button type="button" class="auth-secondary retry-osm-analysis">↻ Riprova analisi OSM</button>';
+ if(!resources||resources.status!=="ok")return '<p class="resource-empty">'+escHtml(resources?.message||"Nessuna informazione cartografica disponibile per questa zona.")+'</p>'+(resources?.details?'<p class="resource-empty"><small>Dettagli tecnici: '+escHtml(resources.details)+'</small></p>':"")+'<button type="button" class="auth-secondary retry-osm-analysis">↻ Riprova analisi OSM</button>';
  if(!resources.items?.length)return '<p class="resource-empty">Nessuna delle risorse mappate è stata rilevata in questa zona.</p>';
  return resources.items.map(r=>'<div class="resource-row resource-'+r.type+'"><span class="resource-icon">'+r.icon+'</span><div class="resource-copy"><strong>'+escHtml(r.label)+'</strong><small>'+(r.detected===false?"Non rilevata nei dati OSM":r.area_m2>0?fmtArea(r.area_m2)+" di superficie · "+r.share_pct+"%":"Presenza rilevata su OSM (superficie non stimabile)")+'</small><span class="resource-meter"><i style="width:'+Math.min(100,r.share_pct)+'%"></i></span></div></div>').join("");
 }
