@@ -1,4 +1,4 @@
-/* TERRITORIALS — V2.5.1 diagnostica e avvio OSM indipendente dalla colonia */
+/* TERRITORIALS — V2.5.2 ripristino interrogazioni OSM mirate al perimetro */
 let TEST_MODE=true;
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
@@ -135,30 +135,24 @@ function resourceClasses(tags){
 }
 const resourceAnalysesInFlight=new Set(),resourceAnalysesAttempted=new Set();
 async function fetchOverpassResources(query){
+ // Prima il server usato nella versione funzionante; il secondo è un fallback.
  const endpoints=[
-  {url:"https://overpass.private.coffee/api/interpreter",ms:25000},
-  {url:"https://overpass-api.de/api/interpreter",ms:20000}
+  {url:"https://overpass-api.de/api/interpreter",ms:55000},
+  {url:"https://overpass.private.coffee/api/interpreter",ms:55000}
  ];
  const errors=[];
  for(const {url,ms} of endpoints){
   const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),ms);
   try{
-   let response;
-   try{
-    response=await fetch(url,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:"data="+encodeURIComponent(query),signal:controller.signal});
-   }catch(postError){
-    if(controller.signal.aborted)throw postError;
-    // Alcuni server/proxy bloccano le richieste POST provenienti dalle pagine statiche.
-    response=await fetch(url+"?data="+encodeURIComponent(query),{method:"GET",signal:controller.signal});
-   }
+   const response=await fetch(url,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded;charset=UTF-8"},body:"data="+encodeURIComponent(query),signal:controller.signal});
    if(!response.ok)throw new Error("HTTP "+response.status);
    const data=await response.json();
-   if(!Array.isArray(data.elements))throw new Error(data.remark||"Formato OSM non valido");
+   if(!Array.isArray(data.elements))throw new Error(data.remark||"Risposta OSM non valida");
    if(data.remark&&/error|timeout|memory/i.test(data.remark))throw new Error(data.remark);
-   console.info("OSM resource analysis:",data.elements.length,"elements from",url);
+   console.info("OSM analysis:",data.elements.length,"elements from",url);
    return {elements:data.elements,server:url};
   }catch(error){
-   const reason=error.name==="AbortError"?"timeout "+Math.round(ms/1000)+"s":error.message||"errore rete/CORS";
+   const reason=error.name==="AbortError"?"timeout "+Math.round(ms/1000)+"s":error.message||"errore di rete";
    errors.push(new URL(url).hostname+": "+reason);
    console.warn("OSM endpoint error:",url,error);
   }finally{clearTimeout(timeout)}
@@ -200,18 +194,9 @@ async function calculateTerritoryResources(points){
  if(!Number.isFinite(territoryArea)||territoryArea<=0)return {status:"unknown",items:[],message:"La superficie non è valida."};
  const lats=points.map(p=>p.lat),lngs=points.map(p=>p.lng);
  const south=Math.min(...lats),north=Math.max(...lats),west=Math.min(...lngs),east=Math.max(...lngs);
- const bbox=[south,west,north,east].map(v=>v.toFixed(7)).join(",");
- // Interroga OSM per aree verdi, colture, edifici e acqua. Include nodi e relazioni multipoligono.
- const query='[out:json][timeout:26];('+
-  'nwr["landuse"~"^(forest|grass|farmland|farmyard|meadow|orchard|vineyard|allotments|greenhouse_horticulture|industrial|quarry|construction|reservoir)$"]('+bbox+');'+
-  'nwr["natural"~"^(wood|tree|scrub|heath|grassland|meadow|water|wetland|spring)$"]('+bbox+');'+
-  'nwr["landcover"="trees"]('+bbox+');'+
-  'nwr["leisure"="park"]('+bbox+');'+
-  'nwr["building"]('+bbox+');'+
-  'nwr["waterway"]('+bbox+');'+
-  'node["amenity"~"^(drinking_water|fountain|watering_place)$"]('+bbox+');'+
-  'node["man_made"="water_well"]('+bbox+');'+
-  ');out geom;';
+ // Ripristina la ricerca sul perimetro, già utilizzata dalle versioni precedenti.
+ const poly=points.map(p=>p.lat+" "+p.lng).join(" ");
+ const query='[out:json][timeout:45];(way(poly:"'+poly+'")[landuse=forest];way(poly:"'+poly+'")[natural=wood];way(poly:"'+poly+'")[landcover=trees];way(poly:"'+poly+'")[leisure=park];way(poly:"'+poly+'")[landuse=grass];way(poly:"'+poly+'")[natural=scrub];way(poly:"'+poly+'")[natural=heath];way(poly:"'+poly+'")[natural=grassland];way(poly:"'+poly+'")[landuse=farmland];way(poly:"'+poly+'")[landuse=meadow];way(poly:"'+poly+'")[building];way(poly:"'+poly+'")[landuse=industrial];way(poly:"'+poly+'")[natural=water];);out body geom;';
  const data=await fetchOverpassResources(query);
  if(!data.elements)return {status:"unknown",items:[],message:"Non è stato possibile contattare OpenStreetMap.",details:(data.errors||[]).join(" | ").slice(0,700)};
  const covered={forest:0,food:0,materials:0,water:0},seen={forest:false,food:false,materials:false,water:false};
