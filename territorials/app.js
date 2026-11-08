@@ -14,7 +14,7 @@ let savedTerritories=[],currentUser=null,playerName="",lastClosedResources=null,
 let colony={population:1,assignments:{},inventory:{},last_tick:new Date().toISOString()},colonyLoaded=false,colonySaving=false,colonyLastTick=Date.now();
 let walkedMeters=0,walkPreviousPosition=null,walkPreviousAt=0,walkPersistedAt=0,walkingSaving=false;
 let playerAchievements={first_kingdom:false,walk_one_km:false};
-let pendingAchievementNotices=[],lastAnnouncedUnemployed=-1;
+let pendingAchievementNotices=[],lastAnnouncedUnemployed=-1,unemployedNoticeUnread=false;
 const RESOURCE_RATE_PER_WORKER_MINUTE=1;
 function distance(a,b){const r=Math.PI/180,R=6371000,dLat=(b.lat-a.lat)*r,dLon=(b.lng-a.lng)*r,x=Math.sin(dLat/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLon/2)**2;return 2*R*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))}
 function area(points){if(points.length<3)return 0;const lat0=points.reduce((s,p)=>s+p.lat,0)/points.length,scaleX=111320*Math.cos(lat0*Math.PI/180),scaleY=110540;let sum=0;for(let i=0;i<points.length;i++){const a=points[i],b=points[(i+1)%points.length];sum+=(a.lng*scaleX)*(b.lat*scaleY)-(b.lng*scaleX)*(a.lat*scaleY)}return Math.abs(sum/2)}
@@ -54,7 +54,8 @@ async function loadZones(){
   const avatar=z.owner_avatar_url||"",avatarMarkup=avatar?'<img src="'+escHtml(avatar)+'" alt="">':'<span>'+escHtml(profileInitials(z.owner_name))+'</span>';
   const resourceIcons=(z.resources?.status==="ok"?(z.resources.items||[]):[]).filter(r=>RESOURCE_TYPES[r.type]).map(r=>'<span title="'+escHtml(r.label||RESOURCE_TYPES[r.type].label)+'">'+RESOURCE_TYPES[r.type].icon+'</span>').join("");
   const resourceMarkup=resourceIcons?'<span class="territory-label-resources">'+resourceIcons+'</span>':"";
-  L.marker(center,{interactive:true,keyboard:false,icon:L.divIcon({className:"territory-label-wrap",html:'<div class="territory-map-label '+(own?"is-own":"is-rival")+'">'+avatarMarkup+'<span class="territory-label-copy"><strong>'+escHtml(territoryName)+'</strong><small>'+escHtml(z.owner_name||"Giocatore")+'</small>'+resourceMarkup+'</span></div>',iconSize:[230,60],iconAnchor:[115,30]})}).addTo(drawnLayer);
+  const resourcePending=z.resources?.status==="pending"?'<span class="territory-resource-pending"><i></i>Analisi risorse in corso</span>':"";
+  L.marker(center,{interactive:true,keyboard:false,icon:L.divIcon({className:"territory-label-wrap",html:'<div class="territory-map-label '+(own?"is-own":"is-rival")+'">'+avatarMarkup+'<span class="territory-label-copy"><strong>'+escHtml(territoryName)+'</strong><small>'+escHtml(z.owner_name||"Giocatore")+'</small>'+resourceMarkup+resourcePending+'</span></div>',iconSize:[280,60],iconAnchor:[140,30]})}).addTo(drawnLayer);
   poly.bindPopup('<b>'+escHtml(territoryName)+'</b><br>Proprietario: '+escHtml(z.owner_name||"Giocatore")+'<br>'+fmtArea(Number(z.area_m2)||0)+'<br><small>'+new Date(z.created_at).toLocaleDateString("it-IT")+'</small>');
  });
  updatePositionBanner();
@@ -154,19 +155,21 @@ function unemployedWorkerCount(){
 function updateProfileNotifications(announceUnemployed=false){
  const badge=$("profileNotificationBadge");if(!badge)return;
  const achievementCount=pendingAchievementNotices.length,unemployed=unemployedWorkerCount();
- const total=achievementCount+(unemployed>0?1:0);
+ const total=achievementCount+(unemployedNoticeUnread&&unemployed>0?1:0);
  badge.textContent=total>9?"9+":String(total);
  badge.hidden=total===0;
  badge.setAttribute("aria-hidden",String(total===0));
  const messages=[];
  if(achievementCount)messages.push(achievementCount+" obiettiv"+(achievementCount===1?"o completato":"i completati"));
- if(unemployed>0)messages.push(unemployed+" lavorator"+(unemployed===1?"e disoccupato":"i disoccupati"));
+ if(unemployedNoticeUnread&&unemployed>0)messages.push(unemployed+" lavorator"+(unemployed===1?"e disoccupato":"i disoccupati"));
  $("profileNav").title=messages.length? "Profilo · "+messages.join(" · "):"Profilo";
  $("profileNav").setAttribute("aria-label",messages.length?"Profilo, notifiche: "+messages.join(", "):"Profilo");
  if(announceUnemployed){
   if(unemployed>0&&unemployed!==lastAnnouncedUnemployed){
+   unemployedNoticeUnread=true;
    showToast("Hai "+unemployed+" "+(unemployed===1?"lavoratore disoccupato":"lavoratori disoccupati")+". Apri Il tuo territorio → Popolazione per assegnarli.");
   }
+  if(unemployed===0)unemployedNoticeUnread=false;
   lastAnnouncedUnemployed=unemployed;
  }
 }
@@ -245,7 +248,7 @@ document.addEventListener("visibilitychange",()=>{
  }else{tickColony();if(currentUser&&!TEST_MODE)startGpsWatch()}
 });
 function resourceMarkup(resources){
- if(resources?.status==="pending")return '<p class="resource-empty">Zona salvata. Sto analizzando le risorse OpenStreetMap…</p>';
+ if(resources?.status==="pending")return '<p class="resource-empty"><i class="resource-pending-indicator"></i> Analisi risorse in corso</p>';
  if(!resources||resources.status!=="ok")return '<p class="resource-empty">'+escHtml(resources?.message||"Nessuna informazione cartografica disponibile per questa zona.")+'</p>';
  if(!resources.items?.length)return '<p class="resource-empty">Nessuna delle risorse mappate è stata rilevata in questa zona.</p>';
  return resources.items.map(r=>'<div class="resource-row resource-'+r.type+'"><span class="resource-icon">'+r.icon+'</span><div class="resource-copy"><strong>'+escHtml(r.label)+'</strong><small>'+fmtArea(r.area_m2)+' di superficie · '+r.share_pct+'%</small><span class="resource-meter"><i style="width:'+Math.min(100,r.share_pct)+'%"></i></span></div></div>').join("");
@@ -259,8 +262,9 @@ function renderProfileTab(tab){
  document.querySelectorAll(".profile-tab").forEach(b=>b.classList.toggle("active",b.dataset.profileTab===tab));
  const content=$("profileTabContent");if(!content)return;
  if(tab==="achievements"){
-  if(pendingAchievementNotices.length){pendingAchievementNotices=[];savePlayerProgress();updateProfileNotifications(false)}
-  content.innerHTML='<div class="achievement-intro">Completa le sfide per costruire la tua storia da conquistatore.</div>'+achievementList().map(a=>'<article class="achievement-card '+(a.done?"is-unlocked":"is-locked")+'"><span class="achievement-icon">'+a.icon+'</span><div class="achievement-copy"><strong>'+escHtml(a.title)+'</strong><p>'+escHtml(a.description)+'</p>'+(a.id==="walk_one_km"?'<div class="achievement-progress"><i style="width:'+Math.min(100,a.progress/10)+'%"></i></div><small>'+a.progress+' / 1.000 m</small>':'')+'</div><span class="achievement-status">'+(a.done?"✓":"🔒")+'</span></article>').join("");
+  const newlyUnlocked=new Set(pendingAchievementNotices);
+  content.innerHTML='<div class="achievement-intro">Completa le sfide per costruire la tua storia da conquistatore.</div>'+achievementList().map(a=>'<article class="achievement-card '+(a.done?"is-unlocked":"is-locked")+(newlyUnlocked.has(a.id)?" is-new":"")+'"><span class="achievement-icon">'+a.icon+'</span><div class="achievement-copy"><strong>'+escHtml(a.title)+'</strong><p>'+escHtml(a.description)+'</p>'+(a.id==="walk_one_km"?'<div class="achievement-progress"><i style="width:'+Math.min(100,a.progress/10)+'%"></i></div><small>'+a.progress+' / 1.000 m</small>':'')+'</div><span class="achievement-status">'+(a.done?"✓":"🔒")+'</span></article>').join("");
+  if(newlyUnlocked.size){pendingAchievementNotices=[];savePlayerProgress();updateProfileNotifications(false)}
  }else{
   content.innerHTML='<div class="profile-overview"><div class="profile-summary"><div id="profileAvatar" class="profile-avatar">?</div><div><strong id="profileName">Giocatore</strong><small id="profileEmail"></small></div></div><div class="profile-details" id="profileDetails"></div><div class="avatar-editor"><label for="avatarFile">FOTO PROFILO</label><input id="avatarFile" type="file" accept="image/jpeg,image/png,image/webp" hidden><button id="avatarUploadBtn" class="auth-secondary" type="button">Carica / cambia avatar</button><small id="avatarUploadStatus">Carica una foto per farti riconoscere sulla mappa.</small></div><button id="profileLogout" class="auth-secondary">Esci dall’account</button></div>';
   const meta=currentUser?.user_metadata||{},name=playerName||displayName(currentUser),photo=meta.avatar_url||meta.picture||meta.photo_url||"";
@@ -323,6 +327,7 @@ function renderTerritoryTab(tab){
  if(tab==="population"){
   content.innerHTML='<div class="tab-intro">Gestisci gli abitanti e assegna la forza lavoro alle risorse della tua zona.</div><div class="colony-title"><span>🏕️ POPOLAZIONE</span><strong><span id="colonyPopulation">1</span> abitanti</strong></div><div class="colony-inventory-title">ASSEGNAZIONE LAVORATORI</div><div id="colonyResources"></div><div class="colony-footer"><span>Forza lavoro libera</span><strong id="colonyUnassigned">1 non assegnato</strong></div><small class="colony-rate-note">1 lavoratore raccoglie 1 unità al minuto. La colonia lavora anche quando sei offline.</small>';
   renderColony();
+  if(unemployedNoticeUnread){unemployedNoticeUnread=false;updateProfileNotifications(false)}
  }else if(tab==="resources"){
   const own=savedTerritories.find(z=>z.owner_id===currentUser?.id),resources=own?.resources;
   content.innerHTML='<div class="tab-intro">Risorse naturali individuate all’interno del tuo territorio.</div>'+(resources?.status==="pending"?'<p class="resource-empty">Analisi delle risorse in corso…</p>':resourceMarkup(resources));
