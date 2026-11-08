@@ -9,8 +9,8 @@ L.control.zoom({position:"bottomright"}).addTo(map);
 const $=id=>document.getElementById(id);
 const drawnLayer=L.layerGroup().addTo(map);
 let watchId=null,gpsWatchdog=null,position=null,accuracy=999,track=[],trackLine=null,playerMarker=null,accuracyCircle=null,recording=false,totalDistance=0,toastTimer=null,hasInitialGpsView=false;
-const CLOSE_DISTANCE=24,MAX_TRACK_ACCURACY=60,MIN_POINTS=5,MIN_AREA=250;
-let savedTerritories=[],currentUser=null,playerName="",lastClosedResources=null,currentZoneDetailsId=null;
+const CLOSE_DISTANCE=24,MAX_TRACK_ACCURACY=60,MIN_POINTS=5,MIN_AREA=250,MAX_TERRITORY_AREA=20000;
+let savedTerritories=[],currentUser=null,playerName="",lastClosedResources=null,currentZoneDetailsId=null,areaLimitWarned=false;
 let colony={population:1,assignments:{},inventory:{},last_tick:new Date().toISOString()},colonyLoaded=false,colonySaving=false,colonyLastTick=Date.now();
 let walkedMeters=0,walkPreviousPosition=null,walkPreviousAt=0,walkPersistedAt=0,walkingSaving=false;
 let playerAchievements={first_kingdom:false,walk_one_km:false};
@@ -20,7 +20,17 @@ function distance(a,b){const r=Math.PI/180,R=6371000,dLat=(b.lat-a.lat)*r,dLon=(
 function area(points){if(points.length<3)return 0;const lat0=points.reduce((s,p)=>s+p.lat,0)/points.length,scaleX=111320*Math.cos(lat0*Math.PI/180),scaleY=110540;let sum=0;for(let i=0;i<points.length;i++){const a=points[i],b=points[(i+1)%points.length];sum+=(a.lng*scaleX)*(b.lat*scaleY)-(b.lng*scaleX)*(a.lat*scaleY)}return Math.abs(sum/2)}
 function fmtArea(value){return value>=10000?(value/10000).toFixed(2)+" ha":Math.round(value)+" m²"}
 function showToast(message){const el=$("toast");el.textContent=message;el.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove("show"),3000)}
-function updateStats(){$("distanceValue").textContent=totalDistance>=1000?(totalDistance/1000).toFixed(2)+" km":Math.round(totalDistance)+" m";$("pointValue").textContent=track.length;$("areaValue").textContent=track.length>=3?fmtArea(area(track)):"—"}
+function updateStats(){
+ $("distanceValue").textContent=totalDistance>=1000?(totalDistance/1000).toFixed(2)+" km":Math.round(totalDistance)+" m";
+ $("pointValue").textContent=track.length;
+ const estimatedArea=track.length>=3?area(track):0;
+ $("areaValue").textContent=track.length>=3?fmtArea(estimatedArea):"—";
+ if(recording&&estimatedArea>MAX_TERRITORY_AREA){
+  if(!areaLimitWarned){showToast("Attenzione: stai superando il limite massimo di 2 ettari.");areaLimitWarned=true}
+  $("drawState").textContent="Limite di 2 ettari superato";
+  $("hint").textContent="Il territorio supera 2 ettari (20.000 m²). Riduci il perimetro: non potrà essere chiuso finché supera il limite.";
+ }else if(estimatedArea<=MAX_TERRITORY_AREA){areaLimitWarned=false}
+}
 function updateTerritoryControls(){
  const own=savedTerritories.find(z=>z.owner_id===currentUser?.id);
  const start=$("startBtn"),del=$("deleteZoneBtn");
@@ -381,6 +391,7 @@ function showZoneDetails(z,first){
  $("zoneModal").classList.remove("hidden");
 }
 async function saveClosedZone(points,m2,walked){
+ if(!Number.isFinite(m2)||m2>MAX_TERRITORY_AREA){showToast("Territorio non valido: la superficie massima consentita è 2 ettari (20.000 m²).");return null}
  if(!currentUser){showAuth("Accedi o registrati per salvare la tua zona.");return null}
  const ownerId=currentUser.id,name=playerName||displayName(currentUser),avatar=currentUser.user_metadata?.avatar_url||currentUser.user_metadata?.picture||currentUser.user_metadata?.photo_url||null,resources={status:"pending",items:[]},row={owner_id:ownerId,owner_name:name,owner_avatar_url:avatar,territory_name:"Territorio di "+name,points:points.map(p=>({lat:p.lat,lng:p.lng})),area_m2:Math.round(m2),perimeter_m:Math.round(perimeter(points)),distance_m:Math.round(walked),resources,created_at:new Date().toISOString()};
  // La nuova conquista sostituisce la riga del giocatore, mantenendo valida la regola di una sola zona per account.
@@ -432,7 +443,7 @@ function onSimulatedPosition(p){
  accuracy=5;updateAccuracyCircle(p);applyMovementPoint(p);
  $("gpsPill").classList.add("active");$("gpsPill").querySelector("span").textContent="Posizione simulata";
  $("recenterBtn").disabled=false;
- $("hint").textContent=recording?"Spostamento simulato: distanza, punti e confine si aggiornano mentre trascini il segnalino.":"Trascina il segnalino verde sulla mappa. Quando inizi il tracciamento, ogni spostamento verrà conteggiato come camminata.";
+ if(!(recording&&track.length>=3&&area(track)>MAX_TERRITORY_AREA))$("hint").textContent=recording?"Spostamento simulato: distanza, punti e confine si aggiornano mentre trascini il segnalino.":"Trascina il segnalino verde sulla mappa. Quando inizi il tracciamento, ogni spostamento verrà conteggiato come camminata.";
 }
 function updateAccuracyCircle(p){const radius=Math.max(5,Math.min(accuracy,1000));if(!accuracyCircle)accuracyCircle=L.circle(p,{radius,color:"#287cff",weight:1,fillColor:"#287cff",fillOpacity:.07,interactive:false}).addTo(map);else{accuracyCircle.setLatLng(p);accuracyCircle.setRadius(radius)}}
 function recordWalkingPosition(p,acc){
@@ -459,7 +470,7 @@ function onPosition(event){
  $("recenterBtn").disabled=false;
  $("hint").textContent=accuracy>100?"Posizione approssimativa: il computer non fornisce un GPS preciso. Il segnalino indica comunque la posizione stimata.":"GPS attivo. La posizione viene aggiornata automaticamente, come in Street Coins.";
  applyMovementPoint(p);
- if(recording&&accuracy>MAX_TRACK_ACCURACY){$("hint").textContent="Segnalino aggiornato, ma precisione GPS insufficiente per tracciare il confine. Attendi un fix più preciso."}
+ if(recording&&accuracy>MAX_TRACK_ACCURACY&&!(track.length>=3&&area(track)>MAX_TERRITORY_AREA)){$("hint").textContent="Segnalino aggiornato, ma precisione GPS insufficiente per tracciare il confine. Attendi un fix più preciso."}
 }
 function gpsError(error){
  if(gpsWatchdog){clearTimeout(gpsWatchdog);gpsWatchdog=null}
@@ -476,12 +487,13 @@ function startGpsWatch(){
  try{watchId=navigator.geolocation.watchPosition(event=>{if(gpsWatchdog){clearTimeout(gpsWatchdog);gpsWatchdog=null}$("locateBtn").disabled=false;onPosition(event)},gpsError,{enableHighAccuracy:true,maximumAge:0,timeout:30000})}
  catch(error){if(gpsWatchdog){clearTimeout(gpsWatchdog);gpsWatchdog=null}watchId=null;$("locateBtn").disabled=false;$("locateBtn").textContent="◎ Riprova GPS";showToast("Impossibile avviare il GPS: "+(error.message||"controlla i permessi."))}
 }
-function startTracking(){if(!currentUser){showAuth("Accedi o registrati prima di iniziare a tracciare.");return}if(!TEST_MODE&&!navigator.geolocation){showToast("GPS non disponibile in questo browser.");return}if(recording)return;recording=true;track=[];totalDistance=0;trackLine=L.polyline([],{color:"#16bd91",weight:5,opacity:.95,lineCap:"round",lineJoin:"round"}).addTo(map);$("startBtn").textContent="Tracciamento attivo";$("startBtn").disabled=true;$("cancelBtn").disabled=false;$("drawState").textContent="Stai disegnando il tuo confine";$("liveDot").classList.add("active");$("hint").textContent="Cammina per disegnare il perimetro. Torna vicino al punto iniziale per chiuderlo.";if(TEST_MODE){if(position){track.push(L.latLng(position.lat,position.lng));trackLine.addLatLng(track[0]);updateStats()}else{showToast("Posiziona prima il segnalino sulla mappa.");stopTracking(false)}}else if(watchId===null)startGpsWatch();else if(position&&accuracy<=MAX_TRACK_ACCURACY){track.push(L.latLng(position.lat,position.lng));trackLine.addLatLng(track[0]);updateStats()}}
+function startTracking(){if(!currentUser){showAuth("Accedi o registrati prima di iniziare a tracciare.");return}if(!TEST_MODE&&!navigator.geolocation){showToast("GPS non disponibile in questo browser.");return}if(recording)return;recording=true;areaLimitWarned=false;track=[];totalDistance=0;trackLine=L.polyline([],{color:"#16bd91",weight:5,opacity:.95,lineCap:"round",lineJoin:"round"}).addTo(map);$("startBtn").textContent="Tracciamento attivo";$("startBtn").disabled=true;$("cancelBtn").disabled=false;$("drawState").textContent="Stai disegnando il tuo confine";$("liveDot").classList.add("active");$("hint").textContent="Cammina per disegnare il perimetro. Torna vicino al punto iniziale per chiuderlo.";if(TEST_MODE){if(position){track.push(L.latLng(position.lat,position.lng));trackLine.addLatLng(track[0]);updateStats()}else{showToast("Posiziona prima il segnalino sulla mappa.");stopTracking(false)}}else if(watchId===null)startGpsWatch();else if(position&&accuracy<=MAX_TRACK_ACCURACY){track.push(L.latLng(position.lat,position.lng));trackLine.addLatLng(track[0]);updateStats()}}
 async function tryCloseLoop(current){
  if(track.length<MIN_POINTS||!currentUser)return;
  const start=track[0],d=distance(start,current);if(d>CLOSE_DISTANCE)return;
  const polygonPoints=track.slice(0,-1);if(polygonPoints.length<MIN_POINTS)return;
  const m2=area(polygonPoints);if(m2<MIN_AREA)return;
+ if(m2>MAX_TERRITORY_AREA){if(!areaLimitWarned)showToast("Territorio troppo grande: 2 ettari è il limite massimo. Riduci il perimetro prima di chiuderlo.");areaLimitWarned=true;$("drawState").textContent="Limite di 2 ettari superato";$("hint").textContent="Chiusura bloccata: il territorio misura "+fmtArea(m2)+". Riduci il perimetro a massimo 2 ettari e riprova.";return}
  if(window.zoneSaving)return;window.zoneSaving=true;
  try{
   const first=savedTerritories.filter(z=>z.owner_id===currentUser.id).length===0;
@@ -493,7 +505,7 @@ async function tryCloseLoop(current){
  }catch(e){showToast("Non è stato possibile salvare la zona: "+(e.message||"riprova"));$("hint").textContent="Errore nel salvataggio. Il perimetro è ancora aperto: torna vicino al punto iniziale per riprovare."}
  finally{window.zoneSaving=false}
 }
-function stopTracking(completed){recording=false;$("startBtn").disabled=false;$("startBtn").textContent="Inizia a tracciare";$("cancelBtn").disabled=true;$("liveDot").classList.remove("active");if(trackLine){map.removeLayer(trackLine);trackLine=null}if(!completed){track=[];totalDistance=0;updateStats();$("drawState").textContent="Tracciamento annullato";$("hint").textContent="Quando vuoi, puoi iniziare un nuovo percorso."}updateTerritoryControls()}
+function stopTracking(completed){recording=false;areaLimitWarned=false;$("startBtn").disabled=false;$("startBtn").textContent="Inizia a tracciare";$("cancelBtn").disabled=true;$("liveDot").classList.remove("active");if(trackLine){map.removeLayer(trackLine);trackLine=null}if(!completed){track=[];totalDistance=0;updateStats();$("drawState").textContent="Tracciamento annullato";$("hint").textContent="Quando vuoi, puoi iniziare un nuovo percorso."}updateTerritoryControls()}
 function cancelTracking(){if(!recording)return;stopTracking(false);$("territoryName").textContent="Zona libera";showToast("Tracciamento annullato")}
 
 async function saveTerritoryName(){
