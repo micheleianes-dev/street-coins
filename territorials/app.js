@@ -3,7 +3,7 @@ let TEST_MODE=false;
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
-const map=L.map("map",{zoomControl:false,preferCanvas:true,minZoom:14,maxZoom:17,zoomSnap:1,zoomDelta:1}).setView([46.0679,11.1211],17);
+const map=L.map("map",{zoomControl:false,preferCanvas:true,minZoom:14,maxZoom:19,zoomSnap:0.5,zoomDelta:0.5}).setView([46.0679,11.1211],17);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);
 L.control.zoom({position:"bottomright"}).addTo(map);
 const $=id=>document.getElementById(id);
@@ -356,7 +356,7 @@ function perimeter(points){let total=0;for(let i=0;i<points.length;i++)total+=di
 function fmtDistance(v){return v>=1000?(v/1000).toFixed(2)+" km":Math.round(v)+" m"}
 function showZoneDetails(z,first){
  currentZoneDetailsId=z.id;
- $("zoneTitle").textContent=first?"Hai chiuso la tua prima zona!":"Zona conquistata!";$("territoryNameInput").value=z.territory_name||("Territorio di "+z.owner_name);
+ $("zoneTitle").textContent="Hai chiuso il tuo territorio!";$("territoryNameInput").value=z.territory_name||("Territorio di "+z.owner_name);
  $("zoneDescription").textContent="La zona è stata registrata a nome di "+z.owner_name+".";
  $("zoneArea").textContent=fmtArea(Number(z.area_m2));
  $("zonePerimeter").textContent=fmtDistance(Number(z.perimeter_m));
@@ -535,7 +535,7 @@ $("territoryNav").addEventListener("click",()=>{toggleSidePanel("territoryPanel"
 document.querySelectorAll("[data-close-panel]").forEach(b=>b.addEventListener("click",closeSidePanels));
 document.querySelectorAll(".territory-tab").forEach(b=>b.addEventListener("click",()=>renderTerritoryTab(b.dataset.tab)));
 $("authSignup").addEventListener("click",registerPlayer);$("authLogin").addEventListener("click",loginPlayer);$("authGuest").addEventListener("click",enterAsGuest);
-$("zoneClose").onclick=()=>$("zoneModal").classList.add("hidden");$("zoneOk").onclick=()=>$("zoneModal").classList.add("hidden");$("resourcesClose").onclick=()=>$("resourcesModal").classList.add("hidden");$("resourcesOk").onclick=()=>$("resourcesModal").classList.add("hidden");$("resourcesBtn").onclick=()=>{openResources();closeSidePanels();};$("zoneResourcesBtn").onclick=()=>{$("zoneModal").classList.add("hidden");openResources()};
+$("zoneClose").onclick=()=>$("zoneModal").classList.add("hidden");$("zoneOk").onclick=()=>$("zoneModal").classList.add("hidden");$("resourcesClose").onclick=()=>$("resourcesModal").classList.add("hidden");$("resourcesOk").onclick=()=>$("resourcesModal").classList.add("hidden");$("resourcesBtn").onclick=()=>{openResources();closeSidePanels();};
 db.auth.onAuthStateChange(()=>setTimeout(()=>refreshSession().catch(e=>authMessage(e.message)),0));
 $("locateBtn").addEventListener("click",startGpsWatch);$("startBtn").addEventListener("click",startTracking);$("cancelBtn").addEventListener("click",cancelTracking);
 $("recenterBtn").addEventListener("click",()=>{if(position){map.setView([position.lat,position.lng],17,{animate:false});if(playerMarker)playerMarker.setLatLng([position.lat,position.lng])}else{showToast("Attiva prima il GPS.");startGpsWatch()}});
