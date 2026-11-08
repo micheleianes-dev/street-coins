@@ -1,4 +1,4 @@
-/* TERRITORIALS — V2.5.3 interrogazioni OSM leggere e retry 502 */
+/* TERRITORIALS — V2.5.4 query OSM bbox per parchi e boschi */
 let TEST_MODE=true;
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
@@ -204,13 +204,14 @@ async function calculateTerritoryResources(points){
  if(!Number.isFinite(territoryArea)||territoryArea<=0)return {status:"unknown",items:[],message:"La superficie non è valida."};
  const lats=points.map(p=>p.lat),lngs=points.map(p=>p.lng);
  const south=Math.min(...lats),north=Math.max(...lats),west=Math.min(...lngs),east=Math.max(...lngs);
- // Ripristina la ricerca sul perimetro, già utilizzata dalle versioni precedenti.
- const poly=points.map(p=>p.lat+" "+p.lng).join(" ");
- const query='[out:json][timeout:35];('+
-  'way(poly:"'+poly+'")["landuse"~"^(forest|grass|farmland|farmyard|meadow|orchard|vineyard|allotments|greenhouse_horticulture|industrial|quarry|construction|reservoir)$"];'+
-  'way(poly:"'+poly+'")["natural"~"^(wood|scrub|heath|grassland|water|wetland)$"];'+
-  'way(poly:"'+poly+'")["building"];'+
-  'way(poly:"'+poly+'")["waterway"];'+
+ // La selezione poly su grandi boschi/parchi è molto costosa per Overpass.
+ // Per territori fino a 2 ha interroga soltanto il piccolo rettangolo geografico.
+ const bbox=[south,west,north,east].map(v=>v.toFixed(6)).join(",");
+ const query='[out:json][timeout:30];('+
+  'way["landuse"~"^(forest|grass|farmland|farmyard|meadow|orchard|vineyard|allotments|greenhouse_horticulture|industrial|quarry|construction|reservoir)$"]('+bbox+');'+
+  'way["natural"~"^(wood|scrub|heath|grassland|water|wetland)$"]('+bbox+');'+
+  'way["building"]('+bbox+');'+
+  'way["waterway"]('+bbox+');'+
   ');out geom;';
  const data=await fetchOverpassResources(query);
  if(!data.elements)return {status:"unknown",items:[],message:"Non è stato possibile contattare OpenStreetMap.",details:(data.errors||[]).join(" | ").slice(0,700)};
