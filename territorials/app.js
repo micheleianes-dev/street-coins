@@ -1,4 +1,4 @@
-/* TERRITORIALS — V2.5.4 query OSM bbox per parchi e boschi */
+/* TERRITORIALS — V2.6.0 analisi visiva della mappa */
 let TEST_MODE=true;
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
@@ -198,64 +198,80 @@ function pointInsideOsmRing(lon,lat,ring){
  }
  return inside;
 }
-async function calculateTerritoryResources(points){
- if(!Array.isArray(points)||points.length<3)return {status:"unknown",items:[],message:"Il perimetro non è valido."};
- const territoryArea=area(points);
- if(!Number.isFinite(territoryArea)||territoryArea<=0)return {status:"unknown",items:[],message:"La superficie non è valida."};
- const lats=points.map(p=>p.lat),lngs=points.map(p=>p.lng);
- const south=Math.min(...lats),north=Math.max(...lats),west=Math.min(...lngs),east=Math.max(...lngs);
- // La selezione poly su grandi boschi/parchi è molto costosa per Overpass.
- // Per territori fino a 2 ha interroga soltanto il piccolo rettangolo geografico.
- const bbox=[south,west,north,east].map(v=>v.toFixed(6)).join(",");
- const query='[out:json][timeout:30];('+
-  'way["landuse"~"^(forest|grass|farmland|farmyard|meadow|orchard|vineyard|allotments|greenhouse_horticulture|industrial|quarry|construction|reservoir)$"]('+bbox+');'+
-  'way["natural"~"^(wood|scrub|heath|grassland|water|wetland)$"]('+bbox+');'+
-  'way["building"]('+bbox+');'+
-  'way["waterway"]('+bbox+');'+
-  ');out geom;';
- const data=await fetchOverpassResources(query);
- if(!data.elements)return {status:"unknown",items:[],message:"Non è stato possibile contattare OpenStreetMap.",details:(data.errors||[]).join(" | ").slice(0,700)};
- const covered={forest:0,food:0,materials:0,water:0},seen={forest:false,food:false,materials:false,water:false};
- // Una griglia di circa 8 m evita i costosi ritagli di poligoni, e conta ogni cella una sola volta per risorsa.
- const midLat=(north+south)/2,metersPerLat=110540,metersPerLng=111320*Math.cos(midLat*Math.PI/180);
- const width=Math.max(1,(east-west)*metersPerLng),height=Math.max(1,(north-south)*metersPerLat);
- const nx=Math.max(1,Math.min(75,Math.ceil(width/8))),ny=Math.max(1,Math.min(75,Math.ceil(height/8)));
- const samples=[];
- for(let iy=0;iy<ny;iy++)for(let ix=0;ix<nx;ix++){
-  const lat=south+(iy+.5)/ny*(north-south),lng=west+(ix+.5)/nx*(east-west);
-  if(pointInPolygon({lat,lng},points))samples.push({lat,lng,types:new Set()});
+// Classificatore cartografico: palette della mappa standard OSM, non dati vettoriali.
+const MAP_RESOURCE_PALETTE=[
+ {type:"forest",rgb:[173,209,158],tolerance:52},
+ {type:"forest",rgb:[200,224,180],tolerance:42},
+ {type:"food",rgb:[238,240,213],tolerance:34},
+ {type:"food",rgb:[205,222,172],tolerance:30},
+ {type:"water",rgb:[170,211,223],tolerance:47},
+ {type:"water",rgb:[181,208,208],tolerance:32},
+ {type:"materials",rgb:[208,190,178],tolerance:36},
+ {type:"materials",rgb:[217,208,201],tolerance:28}
+];
+function classifyMapPixel(r,g,b){
+ // Evita di contare testi scuri, linee di confine e strade grigie come risorse.
+ if(Math.max(r,g,b)-Math.min(r,g,b)<8||Math.max(r,g,b)<115)return null;
+ let best=null,bestScore=Infinity;
+ for(const entry of MAP_RESOURCE_PALETTE){
+  const distance=Math.hypot(r-entry.rgb[0],g-entry.rgb[1],b-entry.rgb[2]);
+  if(distance<entry.tolerance&&distance<bestScore){best=entry.type;bestScore=distance}
  }
- const sampleArea=samples.length?territoryArea/samples.length:0;
- let processed=0;
- for(const element of data.elements){
-  const types=resourceClasses(element.tags||{});
-  if(!types.length)continue;
-  const shape=osmResourceGeometry(element);
-  if(!shape.polygons.length&&!shape.lines.length&&!shape.points.length)continue;
-  processed++;
-  for(const type of types){
-   let hits=0;
-   for(const sample of samples){
-    if(sample.types.has(type))continue;
-    if(shape.polygons.some(ring=>pointInsideOsmRing(sample.lng,sample.lat,ring))){
-     sample.types.add(type);hits++;
-    }
-   }
-   if(hits)seen[type]=true;
-  }
-  // I punti OSM rappresentano risorse individuate ma non superfici cartografate.
-  for(const spot of shape.points.concat(shape.lines.flatMap(line=>[line[Math.floor(line.length/2)]]))){
-   if(pointInPolygon({lat:spot[1],lng:spot[0]},points))for(const type of types)seen[type]=true;
-  }
-  // Lascia respirare l'interfaccia anche con molte geometrie OSM.
-  if(processed%80===0)await new Promise(resolve=>setTimeout(resolve,0));
- }
- for(const sample of samples)for(const type of sample.types)covered[type]+=sampleArea;
- const items=Object.keys(RESOURCE_TYPES).map(type=>{
-  const m2=Math.min(territoryArea,covered[type]);
-  return {type,label:RESOURCE_TYPES[type].label,icon:RESOURCE_TYPES[type].icon,area_m2:Math.round(m2),share_pct:Math.round(m2/territoryArea*1000)/10,detected:seen[type]||m2>0};
+ return best;
+}
+function osmTileXY(lat,lng,z){
+ const n=2**z,latRad=Math.max(-85.0511,Math.min(85.0511,lat))*Math.PI/180;
+ return {x:(lng+180)/360*n,y:(1-Math.asinh(Math.tan(latRad))/Math.PI)/2*n};
+}
+function loadResourceTile(x,y,z){
+ return new Promise((resolve,reject)=>{
+  const image=new Image();image.crossOrigin="anonymous";
+  const timeout=setTimeout(()=>{image.onload=image.onerror=null;reject(new Error("Tempo scaduto per la mappa"))},14000);
+  image.onload=()=>{clearTimeout(timeout);resolve(image)};
+  image.onerror=()=>{clearTimeout(timeout);reject(new Error("Tile mappa non accessibile (rete/CORS)"))};
+  image.src="https://tile.openstreetmap.org/"+z+"/"+x+"/"+y+".png";
  });
- return {status:"ok",items,source:"OpenStreetMap",analyzed_at:new Date().toISOString(),sampled_points:samples.length,osm_elements:processed};
+}
+async function calculateTerritoryResources(points){
+ if(!Array.isArray(points)||points.length<3)return {status:"unknown",items:[],message:"Perimetro non valido."};
+ const territoryArea=area(points);
+ if(!Number.isFinite(territoryArea)||territoryArea<=0)return {status:"unknown",items:[],message:"Superficie non valida."};
+ const z=17,projected=points.map(p=>osmTileXY(p.lat,p.lng,z));
+ const minX=Math.min(...projected.map(p=>p.x)),maxX=Math.max(...projected.map(p=>p.x));
+ const minY=Math.min(...projected.map(p=>p.y)),maxY=Math.max(...projected.map(p=>p.y));
+ const x0=Math.floor(minX),x1=Math.floor(maxX),y0=Math.floor(minY),y1=Math.floor(maxY);
+ const count=(x1-x0+1)*(y1-y0+1);
+ if(count>20)return {status:"unknown",items:[],message:"Area troppo estesa per l'analisi cartografica."};
+ const canvas=document.createElement("canvas");canvas.width=(x1-x0+1)*256;canvas.height=(y1-y0+1)*256;
+ const context=canvas.getContext("2d",{willReadFrequently:true});
+ try{
+  // Usa gli stessi tile della mappa visibile, senza interrogare Overpass.
+  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
+   const img=await loadResourceTile(x,y,z);
+   context.drawImage(img,(x-x0)*256,(y-y0)*256,256,256);
+  }
+  const pixels=context.getImageData(0,0,canvas.width,canvas.height).data;
+  const totals={forest:0,food:0,materials:0,water:0};
+  let inside=0;
+  // Pixel a passo 2: classificazione rapida su una griglia ad alta risoluzione.
+  for(let y=0;y<canvas.height;y+=2)for(let x=0;x<canvas.width;x+=2){
+   const tileX=x0+x/256,tileY=y0+y/256;
+   if(!pointInsideOsmRing(tileX,tileY,projected.map(p=>[p.x,p.y])))continue;
+   inside++;
+   const i=(y*canvas.width+x)*4;
+   const type=classifyMapPixel(pixels[i],pixels[i+1],pixels[i+2]);
+   if(type)totals[type]++;
+  }
+  if(!inside)return {status:"unknown",items:[],message:"Il territorio è troppo piccolo per la risoluzione cartografica."};
+  const items=Object.keys(RESOURCE_TYPES).map(type=>{
+   const share=totals[type]/inside;
+   return {type,label:RESOURCE_TYPES[type].label,icon:RESOURCE_TYPES[type].icon,area_m2:Math.round(share*territoryArea),share_pct:Math.round(share*1000)/10,detected:totals[type]>0};
+  });
+  return {status:"ok",items,source:"Mappa OpenStreetMap · stima cromatica",method:"map-pixels-v1",analyzed_at:new Date().toISOString(),sampled_points:inside,confidence:"estimated"};
+ }catch(error){
+  console.warn("Map pixel analysis:",error);
+  return {status:"unknown",items:[],message:"Non è stato possibile leggere i colori della mappa.",details:String(error.message||error)};
+ }
 }
 async function analyzeAndStoreResources(zone,force=false){
  if(!zone||zone.owner_id!==currentUser?.id||(!force&&!["pending","unknown"].includes(zone.resources?.status)))return;
@@ -278,7 +294,7 @@ async function analyzeAndStoreResources(zone,force=false){
    if(local)local.resources=result;
    await loadZones();
    if(currentZoneDetailsId===zone.id&&!$("zoneModal").classList.contains("hidden"))$("zoneResources").innerHTML="<h3>Risorse di questo territorio</h3>"+resourceMarkup(result);
-   showToast(result.status==="ok"?"Risorse OSM analizzate: legname, cibo, materiali e acqua.":"Analisi OSM non riuscita. Apri Risorse e premi Riprova.");
+   showToast(result.status==="ok"?"Analisi visiva completata: quattro categorie di risorse.":"Analisi OSM non riuscita. Apri Risorse e premi Riprova.");
   }
  }catch(error){
   console.error("Resource save:",error);
@@ -387,7 +403,7 @@ document.addEventListener("visibilitychange",()=>{
 });
 function resourceMarkup(resources){
  if(resources?.status==="pending")return '<p class="resource-empty"><i class="resource-pending-indicator"></i> Analisi risorse in corso</p>';
- if(!resources||resources.status!=="ok")return '<p class="resource-empty">'+escHtml(resources?.message||"Nessuna informazione cartografica disponibile per questa zona.")+'</p>'+(resources?.details?'<p class="resource-empty"><small>Dettagli tecnici: '+escHtml(resources.details)+'</small></p>':"")+'<button type="button" class="auth-secondary retry-osm-analysis">↻ Riprova analisi OSM</button>';
+ if(!resources||resources.status!=="ok")return '<p class="resource-empty">'+escHtml(resources?.message||"Nessuna informazione cartografica disponibile per questa zona.")+'</p>'+(resources?.details?'<p class="resource-empty"><small>Dettagli tecnici: '+escHtml(resources.details)+'</small></p>':"")+'<button type="button" class="auth-secondary retry-osm-analysis">↻ Riprova analisi della mappa</button>';
  if(!resources.items?.length)return '<p class="resource-empty">Nessuna delle risorse mappate è stata rilevata in questa zona.</p>';
  return resources.items.map(r=>'<div class="resource-row resource-'+r.type+'"><span class="resource-icon">'+r.icon+'</span><div class="resource-copy"><strong>'+escHtml(r.label)+'</strong><small>'+(r.detected===false?"Non rilevata nei dati OSM":r.area_m2>0?fmtArea(r.area_m2)+" di superficie · "+r.share_pct+"%":"Presenza rilevata su OSM (superficie non stimabile)")+'</small><span class="resource-meter"><i style="width:'+Math.min(100,r.share_pct)+'%"></i></span></div></div>').join("");
 }
@@ -405,7 +421,7 @@ async function retryOwnResourceAnalysis(){
   if(currentZoneDetailsId===zone.id&&!$("zoneModal").classList.contains("hidden"))$("zoneResources").innerHTML="<h3>Risorse di questo territorio</h3>"+resourceMarkup(pending);
   const resourceTab=document.querySelector('.territory-tab.active');
   if(resourceTab?.dataset.tab==="resources"&&!$("territoryPanel").hidden)renderTerritoryTab("resources");
-  showToast("Nuova analisi OpenStreetMap avviata.");
+  showToast("Nuova analisi visiva della mappa avviata.");
   analyzeAndStoreResources(zone,true);
  }catch(error){console.error("Retry OSM:",error);showToast("Impossibile riavviare l’analisi.")}
 }
