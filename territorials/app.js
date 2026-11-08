@@ -1,4 +1,4 @@
-/* TERRITORIALS — V2.4.7 notifiche obiettivi separate dagli avvisi popolazione */
+/* TERRITORIALS — V2.4.8 analisi risorse OSM con timeout e recupero */
 let TEST_MODE=true;
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
@@ -71,6 +71,8 @@ async function loadZones(){
  updatePositionBanner();
  updateTerritoryControls();
  if(currentUser)await loadColony();
+ const pending=savedTerritories.find(z=>z.owner_id===currentUser?.id&&z.resources?.status==="pending");
+ if(pending)analyzeAndStoreResources(pending);
 }
 async function refreshSession(){
  const {data:{session},error}=await db.auth.getSession();if(error)throw error;
@@ -129,34 +131,84 @@ function resourceClass(tags){
  if(tags.building||tags.landuse==="industrial")return "materials";
  return null;
 }
+const resourceAnalysesInFlight=new Set(),resourceAnalysesAttempted=new Set();
+async function fetchOverpassResources(query){
+ const endpoints=["https://overpass.kumi.systems/api/interpreter","https://overpass-api.de/api/interpreter"];
+ for(const endpoint of endpoints){
+  const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),10000);
+  try{
+   const response=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded;charset=UTF-8"},body:"data="+encodeURIComponent(query),signal:controller.signal});
+   if(!response.ok)throw new Error("Overpass HTTP "+response.status);
+   const result=await response.json();
+   if(result.remark&&/timeout|memory|runtime error/i.test(result.remark))throw new Error(result.remark);
+   if(!Array.isArray(result.elements))throw new Error("Risposta OSM non valida");
+   return result.elements;
+  }catch(error){console.warn("Overpass endpoint unavailable:",endpoint,error)}
+  finally{clearTimeout(timeout)}
+ }
+ return null;
+}
 async function calculateTerritoryResources(points){
- const boundary=territoryFeature(points);if(!boundary||!window.turf)return {status:"unknown",items:[],message:"Analisi cartografica non disponibile."};
- const poly=points.map(p=>p.lat+" "+p.lng).join(" ");
- const query='[out:json][timeout:25];(way(poly:"'+poly+'")[landuse=forest];way(poly:"'+poly+'")[natural=wood];way(poly:"'+poly+'")[landcover=trees];way(poly:"'+poly+'")[leisure=park];way(poly:"'+poly+'")[landuse=grass];way(poly:"'+poly+'")[natural=scrub];way(poly:"'+poly+'")[natural=heath];way(poly:"'+poly+'")[natural=grassland];way(poly:"'+poly+'")[landuse=farmland];way(poly:"'+poly+'")[landuse=meadow];way(poly:"'+poly+'")[building];way(poly:"'+poly+'")[landuse=industrial];way(poly:"'+poly+'")[natural=water];);out body geom;';
- const endpoints=["https://overpass-api.de/api/interpreter","https://overpass.kumi.systems/api/interpreter"];
- let data=null,lastError=null;
- for(const endpoint of endpoints){try{const response=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded;charset=UTF-8"},body:"data="+encodeURIComponent(query)});if(!response.ok)throw new Error("Overpass HTTP "+response.status);data=await response.json();break}catch(e){lastError=e}}
- if(!data)return {status:"unknown",items:[],message:"Dati OpenStreetMap temporaneamente non raggiungibili."};
- const groups={forest:[],food:[],materials:[],water:[]};
- for(const element of (data.elements||[])){
-  if(element.type!=="way"||!Array.isArray(element.geometry)||element.geometry.length<4)continue;
+ if(!window.turf||!Array.isArray(points)||points.length<3)return {status:"unknown",items:[],message:"Analisi cartografica non disponibile."};
+ const boundary=territoryFeature(points),territoryArea=turf.area(boundary);
+ if(!Number.isFinite(territoryArea)||territoryArea<=0)return {status:"unknown",items:[],message:"Perimetro non valido."};
+ // Una sola richiesta per i principali tag OSM, con bounding box al posto della lunga geometria GPS.
+ const lats=points.map(p=>p.lat),lngs=points.map(p=>p.lng);
+ const bbox=[Math.min(...lats),Math.min(...lngs),Math.max(...lats),Math.max(...lngs)].map(v=>v.toFixed(6)).join(",");
+ const query='[out:json][timeout:9];(way["landuse"~"^(forest|grass|farmland|meadow|industrial)$"]('+bbox+');way["natural"~"^(wood|scrub|heath|grassland|water)$"]('+bbox+');way["landcover"="trees"]('+bbox+');way["leisure"="park"]('+bbox+');way["building"]('+bbox+'););out geom;';
+ const elements=await fetchOverpassResources(query);
+ if(!elements)return {status:"unknown",items:[],message:"OpenStreetMap non risponde entro il tempo massimo. Potrai riprovare in seguito."};
+ const covered={forest:0,food:0,materials:0,water:0};
+ // Limiti di lavoro per evitare lunghi blocchi su geometrie enormi o su aree molto dettagliate.
+ let processed=0;
+ for(const element of elements){
+  if(processed>=450)break;
+  if(element.type!=="way"||!Array.isArray(element.geometry)||element.geometry.length<4||element.geometry.length>1200)continue;
   const kind=resourceClass(element.tags||{});if(!kind)continue;
   const coords=element.geometry.map(p=>[p.lon,p.lat]);
+  if(coords.some(p=>!Number.isFinite(p[0])||!Number.isFinite(p[1])))continue;
   if(coords[0][0]!==coords[coords.length-1][0]||coords[0][1]!==coords[coords.length-1][1])coords.push(coords[0]);
+  processed++;
   try{
-   const feature=turf.polygon([coords]),clipped=turf.intersect(turf.featureCollection([feature,boundary]));
-   if(clipped&&turf.area(clipped)>1)groups[kind].push(clipped);
-  }catch(e){}
+   const clipped=turf.intersect(turf.featureCollection([turf.polygon([coords]),boundary]));
+   if(clipped)covered[kind]+=Math.max(0,turf.area(clipped));
+  }catch(e){/* OSM può includere geometrie incomplete: salta la singola way. */}
  }
- const items=[];
- for(const [key,features] of Object.entries(groups)){
-  if(!features.length)continue;
-  let merged=features[0];
-  for(let i=1;i<features.length;i++){try{merged=turf.union(turf.featureCollection([merged,features[i]]))||merged}catch(e){}}
-  const m2=Math.min(turf.area(boundary),turf.area(merged));
-  if(m2>1)items.push({type:key,label:RESOURCE_TYPES[key].label,icon:RESOURCE_TYPES[key].icon,area_m2:Math.round(m2),share_pct:Math.round(m2/turf.area(boundary)*1000)/10});
- }
+ const items=Object.entries(covered).filter(([,m2])=>m2>1).map(([type,m2])=>{
+  // La somma delle geometrie sovrapposte può sovrastimare: limita al territorio.
+  const amount=Math.min(territoryArea,m2);
+  return {type,label:RESOURCE_TYPES[type].label,icon:RESOURCE_TYPES[type].icon,area_m2:Math.round(amount),share_pct:Math.round(amount/territoryArea*1000)/10};
+ });
  return {status:"ok",items,source:"OpenStreetMap",analyzed_at:new Date().toISOString()};
+}
+async function analyzeAndStoreResources(zone){
+ if(!zone||zone.owner_id!==currentUser?.id||zone.resources?.status!=="pending")return;
+ const key=zone.id+":"+zone.created_at;
+ if(resourceAnalysesInFlight.has(key)||resourceAnalysesAttempted.has(key))return;
+ resourceAnalysesInFlight.add(key);resourceAnalysesAttempted.add(key);
+ let result;
+ try{
+  result=await calculateTerritoryResources(zone.points);
+ }catch(error){
+  console.error("Resource analysis:",error);
+  result={status:"unknown",items:[],message:"Impossibile completare l’analisi OpenStreetMap."};
+ }
+ try{
+  // Evita che un risultato vecchio sovrascriva una conquista successiva dello stesso utente.
+  const {data,error}=await db.from("territorials_zones").update({resources:result}).eq("id",zone.id).eq("owner_id",zone.owner_id).eq("created_at",zone.created_at).select("id").maybeSingle();
+  if(error)throw error;
+  if(data){
+   const local=savedTerritories.find(z=>z.id===zone.id&&z.created_at===zone.created_at);
+   if(local)local.resources=result;
+   await loadZones();
+   if(currentZoneDetailsId===zone.id&&!$("zoneModal").classList.contains("hidden"))$("zoneResources").innerHTML="<h3>Risorse di questo territorio</h3>"+resourceMarkup(result);
+   showToast(result.status==="ok"?"Analisi delle risorse completata.":"Analisi OSM terminata: dati non disponibili.");
+  }
+ }catch(error){
+  console.error("Resource save:",error);
+  const local=savedTerritories.find(z=>z.id===zone.id&&z.created_at===zone.created_at);
+  if(local)local.resources={status:"unknown",items:[],message:"Analisi non disponibile: impossibile salvare il risultato."};
+ }finally{resourceAnalysesInFlight.delete(key)}
 }
 function unemployedWorkerCount(){
  if(!currentUser||!colonyLoaded||!savedTerritories.some(z=>z.owner_id===currentUser.id)||!colonyResourceTypes().length)return 0;
@@ -410,21 +462,7 @@ async function saveClosedZone(points,m2,walked){
  savedTerritories.push(data);
  await unlockAchievement("first_kingdom");
  await loadZones();
- // La conquista viene mostrata subito; l'analisi OSM prosegue in background.
- calculateTerritoryResources(points).then(async result=>{
-  const {error:updateError}=await db.from("territorials_zones").update({resources:result}).eq("id",data.id).eq("owner_id",ownerId);
-  if(updateError)throw updateError;
-  const local=savedTerritories.find(z=>z.id===data.id);if(local)local.resources=result;
-  await loadZones();renderColony();
-  if(currentZoneDetailsId===data.id&&!$("zoneModal").classList.contains("hidden"))$("zoneResources").innerHTML="<h3>Risorse di questo territorio</h3>"+resourceMarkup(result);
-  showToast(result.status==="ok"?"Analisi delle risorse completata.":"Zona salvata; dati risorse non disponibili al momento.");
- }).catch(error=>{
-  console.error("Territorials resource analysis:",error);
-  const fallback={status:"unknown",items:[],message:"Zona salvata. Non è stato possibile completare l’analisi delle risorse."};
-  const local=savedTerritories.find(z=>z.id===data.id);if(local)local.resources=fallback;
-  renderColony();
-  if(currentZoneDetailsId===data.id&&!$("zoneModal").classList.contains("hidden"))$("zoneResources").innerHTML="<h3>Risorse di questo territorio</h3>"+resourceMarkup(fallback);
- });
+ // L'analisi OSM parte da loadZones e riprende anche se l'app viene riaperta.
  return data;
 }
 
