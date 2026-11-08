@@ -14,7 +14,7 @@ let savedTerritories=[],currentUser=null,playerName="",lastClosedResources=null,
 let colony={population:1,assignments:{},inventory:{},last_tick:new Date().toISOString()},colonyLoaded=false,colonySaving=false,colonyLastTick=Date.now();
 let walkedMeters=0,walkPreviousPosition=null,walkPreviousAt=0,walkPersistedAt=0,walkingSaving=false;
 let playerAchievements={first_kingdom:false,walk_one_km:false};
-let pendingAchievementNotices=[],lastAnnouncedUnemployed=-1,unemployedNoticeUnread=false;
+let pendingAchievementNotices=[],lastAnnouncedUnemployed=-1,unemployedNoticeUnread=false,walkingSaveQueued=false;
 const RESOURCE_RATE_PER_WORKER_MINUTE=1;
 function distance(a,b){const r=Math.PI/180,R=6371000,dLat=(b.lat-a.lat)*r,dLon=(b.lng-a.lng)*r,x=Math.sin(dLat/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLon/2)**2;return 2*R*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))}
 function area(points){if(points.length<3)return 0;const lat0=points.reduce((s,p)=>s+p.lat,0)/points.length,scaleX=111320*Math.cos(lat0*Math.PI/180),scaleY=110540;let sum=0;for(let i=0;i<points.length;i++){const a=points[i],b=points[(i+1)%points.length];sum+=(a.lng*scaleX)*(b.lat*scaleY)-(b.lng*scaleX)*(a.lat*scaleY)}return Math.abs(sum/2)}
@@ -277,13 +277,20 @@ function renderProfileTab(tab){
  }
 }
 async function savePlayerProgress(){
- if(!currentUser||walkingSaving)return;
+ if(!currentUser)return;
+ if(walkingSaving){walkingSaveQueued=true;return}
  walkingSaving=true;
  try{
-  const metadata={...(currentUser.user_metadata||{}),territorials_walked_m:Math.round(walkedMeters),territorials_achievements:playerAchievements,territorials_pending_achievements:pendingAchievementNotices};
-  const {data,error}=await db.auth.updateUser({data:metadata});if(error)throw error;
-  currentUser=data.user||{...currentUser,user_metadata:metadata};
- }catch(e){console.warn("Progress save:",e)}finally{walkingSaving=false}
+  do{
+   walkingSaveQueued=false;
+   const metadata={...(currentUser.user_metadata||{}),territorials_walked_m:Math.round(walkedMeters),territorials_achievements:playerAchievements,territorials_pending_achievements:pendingAchievementNotices};
+   const {data,error}=await db.auth.updateUser({data:metadata});if(error)throw error;
+   currentUser=data.user||{...currentUser,user_metadata:metadata};
+  }while(walkingSaveQueued);
+ }catch(e){console.warn("Progress save:",e)}finally{
+  walkingSaving=false;
+  if(walkingSaveQueued){walkingSaveQueued=false;savePlayerProgress()}
+ }
 }
 async function unlockAchievement(id){
  if(playerAchievements[id])return;
@@ -292,12 +299,19 @@ async function unlockAchievement(id){
  if(!$("profilePanel").hidden&&document.querySelector('.profile-tab.active')?.dataset.profileTab==="achievements")renderProfileTab("achievements");
 }
 function loadPlayerProgress(){
- const meta=currentUser?.user_metadata||{};walkedMeters=Math.max(0,Number(meta.territorials_walked_m)||0);walkPersistedAt=walkedMeters;
- playerAchievements={first_kingdom:!!meta.territorials_achievements?.first_kingdom,walk_one_km:!!meta.territorials_achievements?.walk_one_km};
+ const meta=currentUser?.user_metadata||{},storedAchievements=meta.territorials_achievements||{};
+ walkedMeters=Math.max(0,Number(meta.territorials_walked_m)||0);walkPersistedAt=walkedMeters;
+ playerAchievements={first_kingdom:!!storedAchievements.first_kingdom,walk_one_km:!!storedAchievements.walk_one_km};
  pendingAchievementNotices=(Array.isArray(meta.territorials_pending_achievements)?meta.territorials_pending_achievements:[]).filter(id=>playerAchievements[id]);
- if(walkedMeters>=1000)playerAchievements.walk_one_km=true;
- if(savedTerritories.some(z=>z.owner_id===currentUser?.id))playerAchievements.first_kingdom=true;
- if(playerAchievements.first_kingdom||playerAchievements.walk_one_km)savePlayerProgress();
+ if(walkedMeters>=1000){
+  playerAchievements.walk_one_km=true;
+  if(!storedAchievements.walk_one_km)pendingAchievementNotices=[...new Set([...pendingAchievementNotices,"walk_one_km"])];
+ }
+ if(savedTerritories.some(z=>z.owner_id===currentUser?.id)){
+  playerAchievements.first_kingdom=true;
+  if(!storedAchievements.first_kingdom)pendingAchievementNotices=[...new Set([...pendingAchievementNotices,"first_kingdom"])];
+ }
+ if(playerAchievements.first_kingdom||playerAchievements.walk_one_km||pendingAchievementNotices.length)savePlayerProgress();
  updateProfileNotifications(false);
 }
 function renderProfile(){if(!currentUser)return;renderProfileTab("overview")}
