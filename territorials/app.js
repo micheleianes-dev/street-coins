@@ -1,4 +1,4 @@
-/* TERRITORIALS — V2.5.2 ripristino interrogazioni OSM mirate al perimetro */
+/* TERRITORIALS — V2.5.3 interrogazioni OSM leggere e retry 502 */
 let TEST_MODE=true;
 const SUPABASE_URL="https://ibqponyeathgxiweujvd.supabase.co";
 const SUPABASE_KEY="sb_publishable_JhMo2NOsorp_HLE2Vd2BSg_VJJt6e-0";
@@ -135,27 +135,37 @@ function resourceClasses(tags){
 }
 const resourceAnalysesInFlight=new Set(),resourceAnalysesAttempted=new Set();
 async function fetchOverpassResources(query){
- // Prima il server usato nella versione funzionante; il secondo è un fallback.
+ // Le istanze pubbliche possono rispondere 502/429 quando sono sovraccariche.
+ // Prova tre istanze e ripete una sola volta gli errori temporanei.
  const endpoints=[
-  {url:"https://overpass-api.de/api/interpreter",ms:55000},
-  {url:"https://overpass.private.coffee/api/interpreter",ms:55000}
+  {url:"https://overpass-api.de/api/interpreter",ms:40000},
+  {url:"https://overpass.private.coffee/api/interpreter",ms:40000},
+  {url:"https://overpass.nchc.org.tw/api/interpreter",ms:35000}
  ];
  const errors=[];
  for(const {url,ms} of endpoints){
-  const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),ms);
-  try{
-   const response=await fetch(url,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded;charset=UTF-8"},body:"data="+encodeURIComponent(query),signal:controller.signal});
-   if(!response.ok)throw new Error("HTTP "+response.status);
-   const data=await response.json();
-   if(!Array.isArray(data.elements))throw new Error(data.remark||"Risposta OSM non valida");
-   if(data.remark&&/error|timeout|memory/i.test(data.remark))throw new Error(data.remark);
-   console.info("OSM analysis:",data.elements.length,"elements from",url);
-   return {elements:data.elements,server:url};
-  }catch(error){
-   const reason=error.name==="AbortError"?"timeout "+Math.round(ms/1000)+"s":error.message||"errore di rete";
-   errors.push(new URL(url).hostname+": "+reason);
-   console.warn("OSM endpoint error:",url,error);
-  }finally{clearTimeout(timeout)}
+  for(let attempt=0;attempt<2;attempt++){
+   const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),ms);
+   try{
+    const response=await fetch(url,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded;charset=UTF-8"},body:"data="+encodeURIComponent(query),signal:controller.signal});
+    if(!response.ok)throw new Error("HTTP "+response.status);
+    const data=await response.json();
+    if(!Array.isArray(data.elements))throw new Error(data.remark||"Risposta OSM non valida");
+    if(data.remark&&/error|timeout|memory/i.test(data.remark))throw new Error(data.remark);
+    console.info("OSM analysis:",data.elements.length,"elements from",url);
+    return {elements:data.elements,server:url};
+   }catch(error){
+    const reason=error.name==="AbortError"?"timeout "+Math.round(ms/1000)+"s":error.message||"errore di rete";
+    errors.push(new URL(url).hostname+": "+reason);
+    console.warn("OSM endpoint error:",url,error);
+    // Ripeti soltanto per errori di gateway o servizio momentaneamente indisponibile.
+    if(attempt===0&&/HTTP (429|500|502|503|504)/.test(reason)){
+     await new Promise(resolve=>setTimeout(resolve,1500));
+     continue;
+    }
+    break;
+   }finally{clearTimeout(timeout)}
+  }
  }
  return {elements:null,errors};
 }
@@ -196,7 +206,12 @@ async function calculateTerritoryResources(points){
  const south=Math.min(...lats),north=Math.max(...lats),west=Math.min(...lngs),east=Math.max(...lngs);
  // Ripristina la ricerca sul perimetro, già utilizzata dalle versioni precedenti.
  const poly=points.map(p=>p.lat+" "+p.lng).join(" ");
- const query='[out:json][timeout:45];(way(poly:"'+poly+'")[landuse=forest];way(poly:"'+poly+'")[natural=wood];way(poly:"'+poly+'")[landcover=trees];way(poly:"'+poly+'")[leisure=park];way(poly:"'+poly+'")[landuse=grass];way(poly:"'+poly+'")[natural=scrub];way(poly:"'+poly+'")[natural=heath];way(poly:"'+poly+'")[natural=grassland];way(poly:"'+poly+'")[landuse=farmland];way(poly:"'+poly+'")[landuse=meadow];way(poly:"'+poly+'")[building];way(poly:"'+poly+'")[landuse=industrial];way(poly:"'+poly+'")[natural=water];);out body geom;';
+ const query='[out:json][timeout:35];('+
+  'way(poly:"'+poly+'")["landuse"~"^(forest|grass|farmland|farmyard|meadow|orchard|vineyard|allotments|greenhouse_horticulture|industrial|quarry|construction|reservoir)$"];'+
+  'way(poly:"'+poly+'")["natural"~"^(wood|scrub|heath|grassland|water|wetland)$"];'+
+  'way(poly:"'+poly+'")["building"];'+
+  'way(poly:"'+poly+'")["waterway"];'+
+  ');out geom;';
  const data=await fetchOverpassResources(query);
  if(!data.elements)return {status:"unknown",items:[],message:"Non è stato possibile contattare OpenStreetMap.",details:(data.errors||[]).join(" | ").slice(0,700)};
  const covered={forest:0,food:0,materials:0,water:0},seen={forest:false,food:false,materials:false,water:false};
