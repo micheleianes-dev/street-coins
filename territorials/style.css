@@ -428,3 +428,81 @@ button:not(:disabled):active{transform:translateY(2px) scale(.985)}
 
 /* v2.8.5: confronto prima della sostituzione */
 .territory-comparison{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;text-align:left;margin:12px 0}.comparison-column{min-width:0;padding:12px 9px;background:#f8f5eb;border:2px solid #e6ddc8;border-radius:14px;font-size:12px;overflow-wrap:anywhere}.comparison-column>strong{display:block;font-size:12px;color:#263b4d}.comparison-column>small{display:block;margin:5px 0 10px;color:#657083}.comparison-column>div:not(.comparison-resource){display:flex;justify-content:space-between;gap:5px;margin:7px 0}.comparison-column h4{margin:12px 0 7px}.comparison-resource{display:flex;justify-content:space-between;gap:5px;padding:4px 0;border-bottom:1px solid #e4dfd4}.comparison-resource strong{white-space:nowrap}@media(max-width:350px){.territory-comparison{gap:5px}.comparison-column{padding:8px 5px;font-size:11px}}
+
+/* TERRITORIALS 2.9.1 — Codex Regnorum, veste medievale */
+:root{--ink:#38291e;--muted:#75644e;--mint:#94703a;--mint-dark:#66451f;--cream:#f3e7c9;--gold:#c9a35d;--blood:#873f35;--forest:#304b3b}
+html,body,#app{font-family:'Spectral',Georgia,serif;color:#38291e}
+body{background:#39271d}
+button,input,textarea,select{font-family:'Spectral',Georgia,serif}
+.topbar,.territory-banner,.draw-panel,.side-panel,.map-legend,.auth-card,.zone-card{
+ background:linear-gradient(145deg,#f7edcf 0%,#e7d3a9 100%)!important;
+ border:3px double #8c6a3c!important;border-radius:8px!important;
+ color:#38291e!important;
+ box-shadow:0 5px 0 #4c3020,0 12px 30px #20150d55,inset 0 0 0 3px #fff6da55!important;
+ backdrop-filter:none!important
+}
+.topbar{padding:9px 13px!important;border-top:5px solid #a17b40!important}
+.brand-mark,.auth-mark,.zone-medal{
+ background:linear-gradient(155deg,#b58c48,#755021)!important;
+ border:2px solid #f7db8a!important;border-radius:4px!important;
+ color:#fff1bf!important;font-family:'MedievalSharp',Georgia,serif!important;
+ text-shadow:1px 2px #4c2e19
+}
+.brand-copy strong,.auth-brand,.side-panel-head strong,.draw-heading strong,.territory-banner strong,.zone-card h2,.auth-card h2,.territory-summary-title>strong{
+ font-family:'MedievalSharp','IM Fell English',Georgia,serif!important;
+ color:#51351e!important;letter-spacing:.4px!important
+}
+.brand-copy strong{font-size:19px!important}
+.brand-copy small,.territory-banner small,.stats small,.draw-heading small,.zone-kicker,.zone-stats small{
+ color:#795d3a!important;letter-spacing:1px!important;font-weight:800!important
+}
+.gps-pill,.test-mode-pill,.map-legend,.app-version{background:#e3cda0!important;color:#523d28!important;border:1px solid #9d7b49!important;border-radius:4px!important}
+.gps-pill.active{background:#d7e0c2!important;color:#284333!important}
+.territory-banner{border-left:6px solid #8c4734!important}
+.banner-symbol{background:#8a4836!important;color:#f4d68e!important;border:1px solid #d3a766;border-radius:3px!important}
+.draw-panel{border-bottom:5px solid #a17b40!important}
+.stats{border-color:#b69b70!important}
+.stats strong{color:#51351e!important;font-family:'IM Fell English',Georgia,serif;font-size:21px!important}
+.hint,.auth-subtitle,.auth-message,.zone-date{color:#745b3d!important}
+.actions button,.auth-primary,.auth-secondary,.gps-button,.recenter,.panel-close,.zone-close,.rail-button,.territory-tab,.profile-tab{
+ border-radius:5px!important;font-family:'Spectral',Georgia,serif!important;font-weight:800!important;
+ transition:filter .15s,transform .15s
+}
+.actions button:active,.auth-primary:active,.rail-button:active{transform:translateY(2px)}
+.primary,.auth-primary{background:linear-gradient(#a65c42,#793b2e)!important;color:#fff1d2!important;border:2px solid #e4b777!important;box-shadow:0 3px 0 #4d2b23!important}
+.secondary,.auth-secondary,.gps-button{background:#e4d1a7!important;color:#573d28!important;border:2px solid #9d7b49!important;box-shadow:0 2px 0 #8b6b44!important}
+.gps-button{min-height:42px}
+.recenter{background:#f0dfba!important;color:#754a27!important;border:2px solid #8f693d!important}
+.game-rail{background:linear-gradient(#65432d,#39251b)!important;border:2px solid #c69a52!important;border-radius:7px!important;box-shadow:0 6px 18px #24140c66!important}
+.rail-button{background:#ead5a5!important;color:#573722!important;border:2px solid #b58c4d!important}
+.rail-button.active,#exploreNav.active{background:#8d4a37!important;color:#fff1c6!important;border-color:#f1c778!important;box-shadow:inset 0 0 0 2px #5a2c20!important}
+#exploreNav{background:#ead5a5!important;border-color:#b58c4d!important}
+.wall-route-icon svg path:first-child{stroke:#f7d18c!important}
+.territory-tabs,.profile-tabs{background:#ddc496!important;border:1px solid #a78653!important;border-radius:5px!important}
+.territory-tab,.profile-tab{background:#e9d5aa!important;color:#624a31!important;border:1px solid #b69a6b!important}
+.territory-tab.active,.profile-tab.active{background:#854735!important;color:#fff0cf!important;border-color:#c89b5c!important}
+.side-panel:before{background:repeating-linear-gradient(90deg,#aa8548 0 15px,#d8b878 15px 18px)!important;height:5px!important}
+.territory-summary,.territory-summary-empty,.achievement-card,.resource-row,.zone-card .zone-stats div,.comparison-column{
+ background:#f4e6c4!important;border:1px solid #c5a674!important;border-radius:5px!important;color:#463421!important
+}
+.achievement-copy strong,.resource-copy strong,.territory-summary-title>strong{color:#563a22!important}
+.achievement-icon{background:#e6d1a4!important;border-radius:3px!important}
+.resource-meter,.achievement-progress{background:#d2b989!important}
+.resource-meter i,.achievement-progress i{background:#98713e!important}
+.auth-overlay,.zone-overlay{background:#1e150fdc!important;backdrop-filter:blur(3px)}
+.auth-card,.zone-card{background:linear-gradient(#f6ebcb,#e9d5ab)!important}
+.auth-card label,.territory-name-editor label{color:#684b2c!important}
+.auth-card input,.territory-name-editor input{background:#fff7df!important;color:#36251b!important;border:1px solid #a78a59!important;border-radius:3px!important}
+.zone-kicker{color:#8b4936!important}
+.zone-resources h3{color:#68452c!important}
+.territory-map-label{background:linear-gradient(#f8eac6,#dec18c)!important;color:#4a2d1c!important;border:2px solid #906636!important;border-radius:5px!important;box-shadow:0 4px 0 #5d4026,0 7px 16px #2d1a1255!important;font-family:'MedievalSharp',Georgia,serif!important;animation:none!important}
+.territory-map-label .kingdom-standard{background:#954631!important;color:#fbe2a6!important;border:1px solid #f3d492!important}
+.territory-map-label.is-rival .kingdom-standard{background:#465f51!important}
+.territory-map-label.is-own:after{background:#8c4934!important;color:#fff1c9!important}
+.territory-map-label.is-rival:after{background:#425a49!important;color:#fff1c9!important}
+.territory-resource-pending{color:#51351e!important;text-shadow:none!important}
+.player-dot{background:#9c5138!important;box-shadow:0 0 0 6px #e0b96c88,0 2px 9px #0007!important}
+.line-key{background:#a45b38!important}.area-key{border-color:#a45b38!important;background:#a45b3840!important}
+.toast{background:#5a3726!important;color:#fff0d2!important;border:2px solid #c7a16a!important;border-radius:5px!important}
+.app-version span{color:#7d432e!important}
+@media(max-width:420px){.brand-copy strong{font-size:15px!important}.brand-copy small{font-size:6.5px!important}.topbar{gap:6px!important}.draw-panel{padding:12px!important}.territory-map-label{font-size:11px!important}}
