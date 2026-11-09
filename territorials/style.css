@@ -423,3 +423,5 @@ button:not(:disabled):active{transform:translateY(2px) scale(.985)}
 .wall-route-icon svg{width:30px;height:30px;overflow:visible}
 #exploreNav{background:#30485b;border-color:#f4c95d88}
 #exploreNav.active{background:#174638;border-color:#65f0cf;color:#fff;box-shadow:0 0 0 2px #65f0cf44,0 0 13px #65f0cf55}
+
+.territory-map-label .kingdom-standard{display:grid;place-items:center;width:34px;height:38px;flex:0 0 34px;background:#f3bf53;border:2px solid #fff4cf;clip-path:polygon(0 0,100% 0,100% 78%,50% 100%,0 78%);color:#56351e;font-size:24px}.territory-map-label.is-rival .kingdom-standard{background:#a68be8;color:white}
