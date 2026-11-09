@@ -755,7 +755,10 @@ async function tryCloseLoop(current){
  const polygonPoints=track.slice(0,-1);if(polygonPoints.length<MIN_POINTS)return;
  const m2=area(polygonPoints);if(m2<MIN_AREA)return;
  if(m2>MAX_TERRITORY_AREA){if(!areaLimitWarned)showToast("Territorio troppo grande: 2 ettari è il limite massimo. Riduci il perimetro prima di chiuderlo.");areaLimitWarned=true;$("drawState").textContent="Limite di 2 ettari superato";$("hint").textContent="Chiusura bloccata: il territorio misura "+fmtArea(m2)+". Riduci il perimetro a massimo 2 ettari e riprova.";return}
- if(window.zoneSaving)return;window.zoneSaving=true;
+ if(window.zoneSaving)return;
+ const previous=savedTerritories.find(z=>z.owner_id===currentUser.id);
+ if(previous&&!confirm("Vuoi chiudere questo territorio e cancellare il regno precedente?")){showToast("Nuova conquista annullata: il regno precedente è stato conservato.");return}
+ window.zoneSaving=true;
  try{
   const first=savedTerritories.filter(z=>z.owner_id===currentUser.id).length===0;
   $("drawState").textContent="Salvataggio del territorio…";$("hint").textContent="Perimetro chiuso: sto registrando la tua conquista.";
@@ -818,7 +821,7 @@ function toggleSidePanel(id,button){
 $("profileNav").addEventListener("click",()=>{toggleSidePanel("profilePanel",$("profileNav"));if(!$("profilePanel").hidden)renderProfile()});
 document.querySelectorAll(".profile-tab").forEach(b=>b.addEventListener("click",()=>renderProfileTab(b.dataset.profileTab)));
 $("exploreNav").addEventListener("click",()=>toggleSidePanel("drawPanel",$("exploreNav")));
-$("territoryNav").addEventListener("click",()=>{toggleSidePanel("territoryPanel",$("territoryNav"));if(!$("territoryPanel").hidden)renderTerritoryTab("population")});
+$("territoryNav").addEventListener("click",()=>{toggleSidePanel("territoryPanel",$("territoryNav"));if(!$("territoryPanel").hidden)renderTerritoryTab("resources")});
 document.querySelectorAll("[data-close-panel]").forEach(b=>b.addEventListener("click",closeSidePanels));
 document.querySelectorAll(".territory-tab").forEach(b=>b.addEventListener("click",()=>renderTerritoryTab(b.dataset.tab)));
 $("authSignup").addEventListener("click",registerPlayer);$("authLogin").addEventListener("click",loginPlayer);$("authGuest").addEventListener("click",enterAsGuest);
