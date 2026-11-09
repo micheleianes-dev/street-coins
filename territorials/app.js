@@ -10,7 +10,7 @@ const $=id=>document.getElementById(id);
 const drawnLayer=L.layerGroup().addTo(map);
 let watchId=null,gpsWatchdog=null,position=null,accuracy=999,track=[],trackLine=null,playerMarker=null,accuracyCircle=null,recording=false,totalDistance=0,toastTimer=null,hasInitialGpsView=false;
 const CLOSE_DISTANCE=24,MAX_TRACK_ACCURACY=60,MIN_POINTS=5,MIN_AREA=250,MAX_TERRITORY_AREA=20000;
-let savedTerritories=[],currentUser=null,playerName="",lastClosedResources=null,currentZoneDetailsId=null,areaLimitWarned=false,expansionZone=null,expansionLeft=false;
+let savedTerritories=[],currentUser=null,playerName="",lastClosedResources=null,currentZoneDetailsId=null,areaLimitWarned=false,expansionZone=null,expansionLeft=false,expansionPath=[],expansionExit=null;
 let colony={population:1,assignments:{},inventory:{},last_tick:new Date().toISOString()},colonyLoaded=false,colonySaving=false,colonyLastTick=Date.now();
 let walkedMeters=0,walkPreviousPosition=null,walkPreviousAt=0,walkPersistedAt=0,walkingSaving=false;
 let playerAchievements={first_kingdom:false,walk_one_km:false};
@@ -37,8 +37,8 @@ function updateTerritoryControls(){
  if(!start||!del)return;
  del.hidden=!own;
  start.disabled=recording;
- start.textContent=own&&position&&pointInPolygon(position,own.points)?"Ingrandisci il tuo regno":"Inizia a tracciare";
- if(own&&!recording)$("hint").textContent=position&&pointInPolygon(position,own.points)?"Esci dai confini e rientra vicino alla partenza per ampliare il regno.":"Una nuova conquista sostituirà il tuo regno.";
+ start.textContent=own&&position&&pointInPolygon(position,own.points)?"Espandi il tuo territorio":"Inizia a tracciare";
+ if(own&&!recording)$("hint").textContent=position&&pointInPolygon(position,own.points)?"Esci dai confini e rientra da un altro punto: la nuova area verrà aggiunta al territorio.":"Una nuova conquista sostituirà il tuo regno.";
 }
 function updatePositionBanner(){
  let found=null;if(position)for(const t of savedTerritories){if(pointInPolygon(position,t.points)){found=t;break}}
@@ -630,11 +630,27 @@ function updatePlayerMarker(p){
 }
 function applyMovementPoint(p){
  position={lat:p.lat,lng:p.lng};updatePositionBanner();
+ if(recording&&expansionZone){
+  const inside=pointInPolygon(p,expansionZone.points);
+  if(!expansionLeft&&!inside){
+   expansionLeft=true;
+   const last=track[track.length-1]||p;
+   expansionExit=boundaryCrossing(last,p,expansionZone.points)||p;
+   expansionPath=[expansionExit,p];
+   $("hint").textContent="Sei fuori dai confini: traccia la nuova area e rientra nel territorio.";
+  }else if(expansionLeft&&!inside){
+   if(!expansionPath.length||distance(expansionPath[expansionPath.length-1],p)>=2)expansionPath.push(p);
+  }else if(expansionLeft&&inside){
+   const last=expansionPath[expansionPath.length-1];
+   const entry=boundaryCrossing(last,p,expansionZone.points);
+   if(entry){expansionPath.push(entry);tryCloseExpansion(entry)}
+  }
+ }
  if(recording){
   if(track.length===0){track.push(p);trackLine.addLatLng(p)}
   else{const last=track[track.length-1],d=distance(last,p);if(d>=4){track.push(p);totalDistance+=d;trackLine.addLatLng(p)}}
   updateStats();
-if(expansionZone)tryCloseExpansion(p);else tryCloseLoop(p);
+if(!expansionZone)tryCloseLoop(p);
  }
 }
 function onSimulatedPosition(p){
@@ -642,7 +658,7 @@ function onSimulatedPosition(p){
  accuracy=5;updateAccuracyCircle(p);applyMovementPoint(p);
  $("gpsPill").classList.add("active");$("gpsPill").querySelector("span").textContent="Posizione simulata";
  $("recenterBtn").disabled=false;
- if(!(recording&&track.length>=3&&area(track)>MAX_TERRITORY_AREA))$("hint").textContent=recording?"Spostamento simulato: distanza, punti e confine si aggiornano mentre trascini il segnalino.":"Trascina il segnalino verde sulla mappa. Quando inizi il tracciamento, ogni spostamento verrà conteggiato come camminata.";
+ if(!recording&&!(track.length>=3&&area(track)>MAX_TERRITORY_AREA))$("hint").textContent=recording?"Spostamento simulato: distanza, punti e confine si aggiornano mentre trascini il segnalino.":"Trascina il segnalino verde sulla mappa. Quando inizi il tracciamento, ogni spostamento verrà conteggiato come camminata.";
 }
 function updateAccuracyCircle(p){const radius=Math.max(5,Math.min(accuracy,1000));if(!accuracyCircle)accuracyCircle=L.circle(p,{radius,color:"#287cff",weight:1,fillColor:"#287cff",fillOpacity:.07,interactive:false}).addTo(map);else{accuracyCircle.setLatLng(p);accuracyCircle.setRadius(radius)}}
 function recordWalkingPosition(p,acc){
@@ -688,27 +704,50 @@ function startGpsWatch(){
 }
 function startTracking(){
  if(!currentUser){showAuth("Accedi prima di tracciare.");return}if(recording||!position)return;
- expansionZone=savedTerritories.find(z=>z.owner_id===currentUser.id&&pointInPolygon(position,z.points))||null;expansionLeft=false;recording=true;areaLimitWarned=false;track=[];totalDistance=0;
+ expansionZone=savedTerritories.find(z=>z.owner_id===currentUser.id&&pointInPolygon(position,z.points))||null;expansionLeft=false;expansionPath=[];expansionExit=null;recording=true;areaLimitWarned=false;track=[];totalDistance=0;
  trackLine=L.polyline([],{color:"#16bd91",weight:5,opacity:.95}).addTo(map);
  $("startBtn").textContent=expansionZone?"Espansione attiva":"Tracciamento attivo";$("startBtn").disabled=true;$("cancelBtn").disabled=false;$("drawState").textContent=expansionZone?"Espansione del regno":"Stai disegnando il tuo confine";$("liveDot").classList.add("active");
- $("hint").textContent=expansionZone?"Esci dal regno e rientra vicino al punto iniziale per ingrandirlo.":"Cammina lungo il perimetro e torna al punto iniziale.";
+ $("hint").textContent=expansionZone?"Esci dai confini, percorri il nuovo perimetro esterno e rientra nel territorio da un altro punto.":"Cammina lungo il perimetro e torna al punto iniziale.";
  if(TEST_MODE||accuracy<=MAX_TRACK_ACCURACY){track.push(L.latLng(position.lat,position.lng));trackLine.addLatLng(track[0]);updateStats()}else if(watchId===null)startGpsWatch();
 }
-async function tryCloseExpansion(current){
- if(!expansionZone||!expansionLeft||track.length<MIN_POINTS||distance(track[0],current)>CLOSE_DISTANCE||!pointInPolygon(current,expansionZone.points)||window.zoneSaving)return;
- const original=expansionZone,patch=track.slice(0,-1);if(area(patch)<MIN_AREA)return;window.zoneSaving=true;
+function boundaryCrossing(a,b,ring){
+ if(!a||!b)return null;
+ const ax=a.lng,ay=a.lat,bx=b.lng,by=b.lat;
+ let best=null,bestT=Infinity;
+ for(let i=0;i<ring.length;i++){
+  const c=ring[i],d=ring[(i+1)%ring.length],rx=bx-ax,ry=by-ay,sx=d.lng-c.lng,sy=d.lat-c.lat;
+  const det=rx*sy-ry*sx;if(Math.abs(det)<1e-16)continue;
+  const t=((c.lng-ax)*sy-(c.lat-ay)*sx)/det,u=((c.lng-ax)*ry-(c.lat-ay)*rx)/det;
+  if(t>=-1e-8&&t<=1+1e-8&&u>=-1e-8&&u<=1+1e-8&&t<bestT){bestT=t;best={lat:ay+t*ry,lng:ax+t*rx}}
+ }
+ return best;
+}
+async function tryCloseExpansion(entry){
+ if(!expansionZone||!expansionLeft||!expansionExit||expansionPath.length<3||window.zoneSaving)return;
+ const original=expansionZone,path=expansionPath.slice(),patch=path.map(p=>({lat:p.lat,lng:p.lng}));
+ if(distance(patch[0],patch[patch.length-1])<3){showToast("Esci e rientra da punti diversi del confine.");return}
+ window.zoneSaving=true;
  try{
-  const extension=territoryFeature(patch),base=territoryFeature(original.points);
-  if(turf.kinks(extension).features.length){showToast("Il percorso si incrocia.");return}
+  const base=territoryFeature(original.points),extension=territoryFeature(patch);
+  if(turf.kinks(extension).features.length){showToast("Il percorso esterno si incrocia.");return}
   const merged=turf.union(turf.featureCollection([base,extension]));
-  if(!merged||merged.geometry.type!=="Polygon"||merged.geometry.coordinates.length!==1){showToast("Espansione non collegata o con buchi.");return}
-  const points=merged.geometry.coordinates[0].slice(0,-1).map(([lng,lat])=>({lat,lng})),m2=area(points);
-  if(m2>MAX_TERRITORY_AREA){showToast("Limite massimo: 2 ettari.");return}
-  if(m2-area(original.points)<MIN_AREA/2){showToast("Nuova area troppo piccola.");return}
-  for(const rival of savedTerritories){if(rival.owner_id===currentUser.id||rival.points.length<3)continue;const overlap=turf.intersect(turf.featureCollection([merged,territoryFeature(rival.points)]));if(overlap&&turf.area(overlap)>1){showToast("Non puoi invadere un regno rivale.");return}}
+  if(!merged||merged.geometry.type!=="Polygon"||merged.geometry.coordinates.length!==1){showToast("L'espansione deve essere continua e collegata al territorio.");return}
+  const points=merged.geometry.coordinates[0].slice(0,-1).map(([lng,lat])=>({lat,lng})),m2=area(points),added=m2-area(original.points);
+  if(added<MIN_AREA/2){showToast("Espansione troppo piccola.");return}
+  if(m2>MAX_TERRITORY_AREA){showToast("Il territorio non può superare 2 ettari.");return}
+  for(const rival of savedTerritories){
+   if(rival.owner_id===currentUser.id||rival.points.length<3)continue;
+   const overlap=turf.intersect(turf.featureCollection([merged,territoryFeature(rival.points)]));
+   if(overlap&&turf.area(overlap)>1){showToast("Non puoi invadere un territorio rivale.");return}
+  }
+  $("drawState").textContent="Salvataggio espansione…";
   const {data,error}=await db.from("territorials_zones").update({points,area_m2:Math.round(m2),perimeter_m:Math.round(perimeter(points)),distance_m:Math.round((Number(original.distance_m)||0)+totalDistance),resources:{status:"pending",items:[]}}).eq("id",original.id).eq("owner_id",currentUser.id).select("*").single();
-  if(error)throw error;stopTracking(true);$("areaValue").textContent=fmtArea(m2);$("drawState").textContent="Regno ingrandito!";$("hint").textContent="Espansione completata: +"+fmtArea(m2-area(original.points));await loadZones();showZoneDetails(data,false);showToast("Regno ingrandito!");
- }catch(e){console.error(e);showToast("Espansione non riuscita: "+(e.message||"riprova"))}finally{window.zoneSaving=false}
+  if(error)throw error;
+  stopTracking(true);$("areaValue").textContent=fmtArea(m2);$("drawState").textContent="Territorio espanso!";
+  $("hint").textContent="Nuova superficie: +"+fmtArea(added);
+  await loadZones();showZoneDetails(data,false);showToast("Territorio espanso: +"+fmtArea(added));
+ }catch(e){console.error("Espansione:",e);showToast("Espansione non riuscita: "+(e.message||"riprova"))}
+ finally{window.zoneSaving=false}
 }
 async function tryCloseLoop(current){
  if(track.length<MIN_POINTS||!currentUser)return;
@@ -727,7 +766,7 @@ async function tryCloseLoop(current){
  }catch(e){showToast("Non è stato possibile salvare la zona: "+(e.message||"riprova"));$("hint").textContent="Errore nel salvataggio. Il perimetro è ancora aperto: torna vicino al punto iniziale per riprovare."}
  finally{window.zoneSaving=false}
 }
-function stopTracking(completed){recording=false;expansionZone=null;expansionLeft=false;areaLimitWarned=false;$("startBtn").disabled=false;$("startBtn").textContent="Inizia a tracciare";$("cancelBtn").disabled=true;$("liveDot").classList.remove("active");if(trackLine){map.removeLayer(trackLine);trackLine=null}if(!completed){track=[];totalDistance=0;updateStats();$("drawState").textContent="Tracciamento annullato";$("hint").textContent="Quando vuoi, puoi iniziare un nuovo percorso."}updateTerritoryControls()}
+function stopTracking(completed){recording=false;expansionZone=null;expansionLeft=false;expansionPath=[];expansionExit=null;areaLimitWarned=false;$("startBtn").disabled=false;$("startBtn").textContent="Inizia a tracciare";$("cancelBtn").disabled=true;$("liveDot").classList.remove("active");if(trackLine){map.removeLayer(trackLine);trackLine=null}if(!completed){track=[];totalDistance=0;updateStats();$("drawState").textContent="Tracciamento annullato";$("hint").textContent="Quando vuoi, puoi iniziare un nuovo percorso."}updateTerritoryControls()}
 function cancelTracking(){if(!recording)return;stopTracking(false);$("territoryName").textContent="Zona libera";showToast("Tracciamento annullato")}
 
 async function saveTerritoryName(){
