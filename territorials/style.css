@@ -556,3 +556,10 @@ button,input,textarea,select{font-family:'Spectral',Georgia,serif}
 .territory-map-label{background:linear-gradient(#fff0ce,#e4ca97)!important;border-color:#946b39!important}
 .zone-kicker{color:#834638!important}
 @media(max-width:420px){.game-rail{padding:7px 4px!important;gap:7px!important}.game-rail .rail-button,.game-rail #exploreNav,.game-rail .rail-button:nth-child(1),.game-rail .rail-button:nth-child(2),.game-rail .rail-button:nth-child(3){width:43px!important;height:43px!important;min-width:43px!important;min-height:43px!important}}
+
+/* V2.9.3 — cavaliere araldico sopra la posizione del giocatore */
+.player-marker-icon{background:none!important;border:0!important;overflow:visible!important}
+.knight-marker{position:relative;width:88px;height:112px;pointer-events:none;filter:drop-shadow(1px 3px 2px #30201588)}
+.knight-marker svg{display:block;width:88px;height:112px;overflow:visible}
+.knight-ground-point{position:absolute;left:39px;bottom:0;width:10px;height:10px;border:2px solid #f9e6b7;border-radius:50%;background:#853f30;box-shadow:0 0 0 3px #8e5a3f66}
+.player-marker-icon.leaflet-marker-draggable{cursor:grab!important}
