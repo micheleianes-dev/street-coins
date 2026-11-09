@@ -10,7 +10,7 @@ const $=id=>document.getElementById(id);
 const drawnLayer=L.layerGroup().addTo(map);
 let watchId=null,gpsWatchdog=null,position=null,accuracy=999,track=[],trackLine=null,playerMarker=null,accuracyCircle=null,recording=false,totalDistance=0,toastTimer=null,hasInitialGpsView=false;
 const CLOSE_DISTANCE=24,MAX_TRACK_ACCURACY=60,MIN_POINTS=5,MIN_AREA=250,MAX_TERRITORY_AREA=20000;
-let savedTerritories=[],currentUser=null,playerName="",lastClosedResources=null,currentZoneDetailsId=null,areaLimitWarned=false,expansionZone=null,expansionLeft=false,expansionPath=[],expansionExit=null,pendingNewTerritory=null;
+let savedTerritories=[],currentUser=null,playerName="",lastClosedResources=null,currentZoneDetailsId=null,areaLimitWarned=false,expansionZone=null,expansionLeft=false,expansionPath=[],expansionExit=null,pendingNewTerritory=null,closureArmed=false;
 let colony={population:1,assignments:{},inventory:{},last_tick:new Date().toISOString()},colonyLoaded=false,colonySaving=false,colonyLastTick=Date.now();
 let walkedMeters=0,walkPreviousPosition=null,walkPreviousAt=0,walkPersistedAt=0,walkingSaving=false;
 let playerAchievements={first_kingdom:false,walk_one_km:false};
@@ -603,10 +603,10 @@ function showZoneDetails(z,first){
  $("zoneResources").innerHTML="<h3>Risorse di questo territorio</h3>"+resourceMarkup(z.resources);
  $("zoneModal").classList.remove("hidden");
 }
-async function saveClosedZone(points,m2,walked){
+async function saveClosedZone(points,m2,walked,precomputedResources=null){
  if(!Number.isFinite(m2)||m2>MAX_TERRITORY_AREA){showToast("Territorio non valido: la superficie massima consentita è 2 ettari (20.000 m²).");return null}
  if(!currentUser){showAuth("Accedi o registrati per salvare la tua zona.");return null}
- const ownerId=currentUser.id,name=playerName||displayName(currentUser),avatar=currentUser.user_metadata?.avatar_url||currentUser.user_metadata?.picture||currentUser.user_metadata?.photo_url||null,resources={status:"pending",items:[]},row={owner_id:ownerId,owner_name:name,owner_avatar_url:avatar,territory_name:savedTerritories.find(z=>z.owner_id===ownerId)?.territory_name||"Il mio regno",points:points.map(p=>({lat:p.lat,lng:p.lng})),area_m2:Math.round(m2),perimeter_m:Math.round(perimeter(points)),distance_m:Math.round(walked),resources,created_at:new Date().toISOString()};
+ const ownerId=currentUser.id,name=playerName||displayName(currentUser),avatar=currentUser.user_metadata?.avatar_url||currentUser.user_metadata?.picture||currentUser.user_metadata?.photo_url||null,resources=precomputedResources?.status==="ok"?precomputedResources:{status:"pending",items:[]},row={owner_id:ownerId,owner_name:name,owner_avatar_url:avatar,territory_name:savedTerritories.find(z=>z.owner_id===ownerId)?.territory_name||"Il mio regno",points:points.map(p=>({lat:p.lat,lng:p.lng})),area_m2:Math.round(m2),perimeter_m:Math.round(perimeter(points)),distance_m:Math.round(walked),resources,created_at:new Date().toISOString()};
  // La nuova conquista sostituisce la riga del giocatore, mantenendo valida la regola di una sola zona per account.
  const previous=savedTerritories.find(z=>z.owner_id===ownerId);
  const result=previous
@@ -704,7 +704,7 @@ function startGpsWatch(){
 }
 function startTracking(){
  if(!currentUser){showAuth("Accedi prima di tracciare.");return}if(recording||!position)return;
- expansionZone=savedTerritories.find(z=>z.owner_id===currentUser.id&&pointInPolygon(position,z.points))||null;expansionLeft=false;expansionPath=[];expansionExit=null;recording=true;areaLimitWarned=false;track=[];totalDistance=0;
+ expansionZone=savedTerritories.find(z=>z.owner_id===currentUser.id&&pointInPolygon(position,z.points))||null;expansionLeft=false;expansionPath=[];expansionExit=null;closureArmed=false;recording=true;areaLimitWarned=false;track=[];totalDistance=0;
  trackLine=L.polyline([],{color:"#16bd91",weight:5,opacity:.95}).addTo(map);
  $("startBtn").textContent=expansionZone?"Espansione attiva":"Tracciamento attivo";$("startBtn").disabled=true;$("cancelBtn").disabled=false;$("drawState").textContent=expansionZone?"Espansione del regno":"Stai disegnando il tuo confine";$("liveDot").classList.add("active");
  $("hint").textContent=expansionZone?"Esci dai confini, percorri il nuovo perimetro esterno e rientra nel territorio da un altro punto.":"Cammina lungo il perimetro e torna al punto iniziale.";
@@ -749,33 +749,71 @@ async function tryCloseExpansion(entry){
  }catch(e){console.error("Espansione:",e);showToast("Espansione non riuscita: "+(e.message||"riprova"))}
  finally{window.zoneSaving=false}
 }
+function closeCandidate(){
+ if(track.length<MIN_POINTS)return null;
+ const start=track[0],last=track[track.length-1];
+ if(!closureArmed){
+  if(distance(start,last)>Math.max(CLOSE_DISTANCE*1.5,36))closureArmed=true;
+  return null;
+ }
+ if(distance(start,last)>Math.min(CLOSE_DISTANCE,12))return null;
+ const polygonPoints=track.slice(0,-1);
+ if(polygonPoints.length<MIN_POINTS||totalDistance<Math.max(65,Math.sqrt(MIN_AREA)*4))return null;
+ const feature=territoryFeature(polygonPoints);
+ if(turf.kinks(feature).features.length){$("hint").textContent="Il percorso si incrocia: correggi il tracciato prima di chiuderlo.";return null}
+ return polygonPoints;
+}
 async function tryCloseLoop(current){
- if(track.length<MIN_POINTS||!currentUser)return;
- const start=track[0],d=distance(start,current);if(d>CLOSE_DISTANCE)return;
- const polygonPoints=track.slice(0,-1);if(polygonPoints.length<MIN_POINTS)return;
+ if(!currentUser||window.zoneSaving||pendingNewTerritory)return;
+ const polygonPoints=closeCandidate();if(!polygonPoints)return;
  const m2=area(polygonPoints);if(m2<MIN_AREA)return;
- if(m2>MAX_TERRITORY_AREA){if(!areaLimitWarned)showToast("Territorio troppo grande: 2 ettari è il limite massimo. Riduci il perimetro prima di chiuderlo.");areaLimitWarned=true;$("drawState").textContent="Limite di 2 ettari superato";$("hint").textContent="Chiusura bloccata: il territorio misura "+fmtArea(m2)+". Riduci il perimetro a massimo 2 ettari e riprova.";return}
- if(window.zoneSaving||pendingNewTerritory)return;
+ if(m2>MAX_TERRITORY_AREA){if(!areaLimitWarned)showToast("Territorio troppo grande: massimo 2 ettari.");areaLimitWarned=true;return}
  const previous=savedTerritories.find(z=>z.owner_id===currentUser.id);
  if(previous){
-  pendingNewTerritory={points:polygonPoints.map(p=>({lat:p.lat,lng:p.lng})),m2,walked:totalDistance};
+  pendingNewTerritory={points:polygonPoints.map(p=>({lat:p.lat,lng:p.lng})),m2,walked:totalDistance,resources:{status:"pending",items:[]}};
   $("zoneTitle").textContent="Hai chiuso un nuovo territorio!";
-  $("zoneDescription").textContent="Possiedi già un regno. Vuoi conservare quello precedente oppure sostituirlo con questo nuovo territorio?";
+  $("zoneDescription").textContent="Confronta il vecchio regno con il nuovo territorio prima di scegliere.";
   $("zoneArea").textContent=fmtArea(m2);$("zonePerimeter").textContent=fmtDistance(perimeter(polygonPoints));$("zoneDistance").textContent=fmtDistance(totalDistance);
   $("zonePoints").textContent=polygonPoints.length;$("zoneDate").textContent="Nuovo territorio non ancora salvato";
-  $("zoneResources").innerHTML="";
   $("territoryNameInput").closest(".territory-name-editor").hidden=true;
   $("zoneOk").hidden=true;$("zoneReplaceActions").hidden=false;
-  $("zoneModal").classList.remove("hidden");return;
+  renderTerritoryComparison(previous,pendingNewTerritory);
+  $("zoneModal").classList.remove("hidden");
+  analyzeCandidateResources(pendingNewTerritory);
+  return;
  }
  await commitNewTerritory({points:polygonPoints,m2,walked:totalDistance});
+}
+function comparisonResources(resources){
+ if(!resources||resources.status!=="ok")return '<small>Analisi non disponibile</small>';
+ return (resources.items||[]).filter(r=>r.detected!==false).map(r=>'<div class="comparison-resource">'+escHtml(r.icon||RESOURCE_TYPES[r.type]?.icon||"•")+' '+escHtml(r.label||RESOURCE_TYPES[r.type]?.label||r.type)+' <strong>'+fmtArea(Number(r.area_m2)||0)+'</strong></div>').join("")||'<small>Nessuna risorsa rilevata</small>';
+}
+function renderTerritoryComparison(oldZone,candidate){
+ if(pendingNewTerritory!==candidate)return;
+ const html='<div class="territory-comparison"><div class="comparison-column"><strong>🏰 REGNO ATTUALE</strong><small>'+escHtml(oldZone.territory_name||"Il mio regno")+'</small><div>Superficie <b>'+fmtArea(Number(oldZone.area_m2)||area(oldZone.points))+'</b></div><div>Perimetro <b>'+fmtDistance(Number(oldZone.perimeter_m)||perimeter(oldZone.points))+'</b></div><div>Distanza <b>'+fmtDistance(Number(oldZone.distance_m)||0)+'</b></div><h4>Risorse</h4>'+comparisonResources(oldZone.resources)+'</div><div class="comparison-column"><strong>⚑ NUOVO TERRITORIO</strong><small>In attesa della tua scelta</small><div>Superficie <b>'+fmtArea(candidate.m2)+'</b></div><div>Perimetro <b>'+fmtDistance(perimeter(candidate.points))+'</b></div><div>Distanza <b>'+fmtDistance(candidate.walked)+'</b></div><h4>Risorse</h4>'+(candidate.resources.status==="pending"?'<small>Analisi cartografica in corso…</small>':comparisonResources(candidate.resources))+'</div></div>';
+ $("zoneResources").innerHTML=html;
+}
+async function analyzeCandidateResources(candidate){
+ try{
+  const result=await calculateTerritoryResources(candidate.points);
+  if(pendingNewTerritory!==candidate)return;
+  candidate.resources=result;
+  const oldZone=savedTerritories.find(z=>z.owner_id===currentUser?.id);
+  if(oldZone)renderTerritoryComparison(oldZone,candidate);
+  showToast(result.status==="ok"?"Risorse del nuovo territorio analizzate":"Analisi risorse non disponibile");
+ }catch(e){
+  if(pendingNewTerritory!==candidate)return;
+  candidate.resources={status:"unknown",items:[],message:String(e.message||"Analisi non riuscita")};
+  const oldZone=savedTerritories.find(z=>z.owner_id===currentUser?.id);
+  if(oldZone)renderTerritoryComparison(oldZone,candidate);
+ }
 }
 async function commitNewTerritory(candidate){
  if(window.zoneSaving)return;window.zoneSaving=true;
  try{
   const first=!savedTerritories.some(z=>z.owner_id===currentUser.id);
   $("drawState").textContent="Salvataggio del territorio…";
-  const z=await saveClosedZone(candidate.points,candidate.m2,candidate.walked);
+  const z=await saveClosedZone(candidate.points,candidate.m2,candidate.walked,candidate.resources);
   if(!z)return;
   pendingNewTerritory=null;stopTracking(true);$("areaValue").textContent=fmtArea(candidate.m2);
   $("drawState").textContent="Territorio creato!";$("hint").textContent="Il nuovo territorio è stato salvato.";
@@ -791,7 +829,7 @@ function discardNewTerritory(){
  $("territoryNameInput").closest(".territory-name-editor").hidden=false;
  stopTracking(false);updatePositionBanner();showToast("Il regno precedente è stato conservato.");
 }
-function stopTracking(completed){recording=false;expansionZone=null;expansionLeft=false;expansionPath=[];expansionExit=null;areaLimitWarned=false;$("startBtn").disabled=false;$("startBtn").textContent="Inizia a tracciare";$("cancelBtn").disabled=true;$("liveDot").classList.remove("active");if(trackLine){map.removeLayer(trackLine);trackLine=null}if(!completed){track=[];totalDistance=0;updateStats();$("drawState").textContent="Tracciamento annullato";$("hint").textContent="Quando vuoi, puoi iniziare un nuovo percorso."}updateTerritoryControls()}
+function stopTracking(completed){recording=false;closureArmed=false;expansionZone=null;expansionLeft=false;expansionPath=[];expansionExit=null;areaLimitWarned=false;$("startBtn").disabled=false;$("startBtn").textContent="Inizia a tracciare";$("cancelBtn").disabled=true;$("liveDot").classList.remove("active");if(trackLine){map.removeLayer(trackLine);trackLine=null}if(!completed){track=[];totalDistance=0;updateStats();$("drawState").textContent="Tracciamento annullato";$("hint").textContent="Quando vuoi, puoi iniziare un nuovo percorso."}updateTerritoryControls()}
 function cancelTracking(){if(!recording)return;stopTracking(false);$("territoryName").textContent="Zona libera";showToast("Tracciamento annullato")}
 
 async function saveTerritoryName(){
