@@ -704,7 +704,11 @@ function startGpsWatch(){
 }
 function startTracking(){
  if(!currentUser){showAuth("Accedi prima di tracciare.");return}if(recording||!position)return;
- expansionZone=savedTerritories.find(z=>z.owner_id===currentUser.id&&pointInPolygon(position,z.points))||null;expansionLeft=false;expansionPath=[];expansionExit=null;closureArmed=false;recording=true;areaLimitWarned=false;track=[];totalDistance=0;
+ expansionZone=savedTerritories.find(z=>z.owner_id===currentUser.id&&pointInPolygon(position,z.points))||null;
+ // Una partenza dentro il vecchio regno non deve cambiare silenziosamente
+ // le regole di chiusura: il giocatore sceglie la modalità.
+ if(expansionZone&&!confirm("Sei nel tuo regno. OK: espandi il territorio esistente. Annulla: disegna un nuovo territorio con la stessa chiusura delle prime conquiste."))expansionZone=null;
+ expansionLeft=false;expansionPath=[];expansionExit=null;closureArmed=false;recording=true;areaLimitWarned=false;track=[];totalDistance=0;
  trackLine=L.polyline([],{color:"#16bd91",weight:5,opacity:.95}).addTo(map);
  $("startBtn").textContent=expansionZone?"Espansione attiva":"Tracciamento attivo";$("startBtn").disabled=true;$("cancelBtn").disabled=false;$("drawState").textContent=expansionZone?"Espansione del regno":"Stai disegnando il tuo confine";$("liveDot").classList.add("active");
  $("hint").textContent=expansionZone?"Esci dai confini, percorri il nuovo perimetro esterno e rientra nel territorio da un altro punto.":"Cammina lungo il perimetro e torna al punto iniziale.";
@@ -750,20 +754,18 @@ async function tryCloseExpansion(entry){
  finally{window.zoneSaving=false}
 }
 function closeCandidate(current){
- if(track.length<4)return null;
- const start=track[0],last=track[track.length-1],distanceFromStart=distance(start,current);
- // Prima di chiudere bisogna essersi allontanati: evita chiusure immediate.
+ if(track.length<MIN_POINTS)return null;
+ const start=track[0],d=distance(start,current);
  if(!closureArmed){
   if(track.some(p=>distance(start,p)>=30))closureArmed=true;
   else return null;
  }
- // Soglia GPS di 24 m; la posizione corrente vale anche se il filtro a 4 m
- // non l'ha ancora inserita nella traccia.
- if(distanceFromStart>CLOSE_DISTANCE)return null;
+ if(d>CLOSE_DISTANCE)return null;
+ // Stesso algoritmo per primo regno e per sostituzione: il vecchio regno
+ // influisce solo sulla conferma, non sul riconoscimento della chiusura.
  const points=track.slice();
- // Esclude soltanto l'ultimo punto se è già nel raggio di chiusura.
- if(points.length>4&&distance(start,last)<=CLOSE_DISTANCE)points.pop();
- if(points.length<4||totalDistance<50)return null;
+ if(points.length>MIN_POINTS&&distance(start,points[points.length-1])<=CLOSE_DISTANCE)points.pop();
+ if(points.length<MIN_POINTS||totalDistance<50)return null;
  const feature=territoryFeature(points);
  if(turf.kinks(feature).features.length){$("hint").textContent="Il percorso si incrocia: correggi il tracciato prima di chiuderlo.";return null}
  return points;
