@@ -37,8 +37,8 @@ function updateTerritoryControls(){
  if(!start||!del)return;
  del.hidden=!own;
  start.disabled=recording;
- start.textContent=own&&position&&pointInPolygon(position,own.points)?"Espandi il tuo territorio":"Inizia a tracciare";
- if(own&&!recording)$("hint").textContent=position&&pointInPolygon(position,own.points)?"Esci dai confini e rientra da un altro punto: la nuova area verrà aggiunta al territorio.":"Una nuova conquista sostituirà il tuo regno.";
+ start.textContent="Inizia a tracciare";
+ if(own&&!recording)$("hint").textContent="Traccia un nuovo territorio come la prima volta: alla chiusura potrai confrontarlo con il tuo regno e scegliere se sostituirlo.";
 }
 function updatePositionBanner(){
  let found=null;if(position)for(const t of savedTerritories){if(pointInPolygon(position,t.points)){found=t;break}}
@@ -704,10 +704,10 @@ function startGpsWatch(){
 }
 function startTracking(){
  if(!currentUser){showAuth("Accedi prima di tracciare.");return}if(recording||!position)return;
- expansionZone=savedTerritories.find(z=>z.owner_id===currentUser.id&&pointInPolygon(position,z.points))||null;
- // Una partenza dentro il vecchio regno non deve cambiare silenziosamente
- // le regole di chiusura: il giocatore sceglie la modalità.
- if(expansionZone&&!confirm("Sei nel tuo regno. OK: espandi il territorio esistente. Annulla: disegna un nuovo territorio con la stessa chiusura delle prime conquiste."))expansionZone=null;
+ // La creazione di un territorio usa SEMPRE lo stesso flusso, anche se
+ // l'utente possiede già un regno o parte all'interno dei suoi confini.
+ // La presenza di un regno viene controllata solo DOPO la chiusura.
+ expansionZone=null;
  expansionLeft=false;expansionPath=[];expansionExit=null;closureArmed=false;recording=true;areaLimitWarned=false;track=[];totalDistance=0;
  trackLine=L.polyline([],{color:"#16bd91",weight:5,opacity:.95}).addTo(map);
  $("startBtn").textContent=expansionZone?"Espansione attiva":"Tracciamento attivo";$("startBtn").disabled=true;$("cancelBtn").disabled=false;$("drawState").textContent=expansionZone?"Espansione del regno":"Stai disegnando il tuo confine";$("liveDot").classList.add("active");
