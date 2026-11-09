@@ -10,7 +10,7 @@ const $=id=>document.getElementById(id);
 const drawnLayer=L.layerGroup().addTo(map);
 let watchId=null,gpsWatchdog=null,position=null,accuracy=999,track=[],trackLine=null,playerMarker=null,accuracyCircle=null,recording=false,totalDistance=0,toastTimer=null,hasInitialGpsView=false;
 const CLOSE_DISTANCE=24,MAX_TRACK_ACCURACY=60,MIN_POINTS=5,MIN_AREA=250,MAX_TERRITORY_AREA=20000;
-let savedTerritories=[],currentUser=null,playerName="",lastClosedResources=null,currentZoneDetailsId=null,areaLimitWarned=false,expansionZone=null,expansionLeft=false,expansionPath=[],expansionExit=null;
+let savedTerritories=[],currentUser=null,playerName="",lastClosedResources=null,currentZoneDetailsId=null,areaLimitWarned=false,expansionZone=null,expansionLeft=false,expansionPath=[],expansionExit=null,pendingNewTerritory=null;
 let colony={population:1,assignments:{},inventory:{},last_tick:new Date().toISOString()},colonyLoaded=false,colonySaving=false,colonyLastTick=Date.now();
 let walkedMeters=0,walkPreviousPosition=null,walkPreviousAt=0,walkPersistedAt=0,walkingSaving=false;
 let playerAchievements={first_kingdom:false,walk_one_km:false};
@@ -755,19 +755,41 @@ async function tryCloseLoop(current){
  const polygonPoints=track.slice(0,-1);if(polygonPoints.length<MIN_POINTS)return;
  const m2=area(polygonPoints);if(m2<MIN_AREA)return;
  if(m2>MAX_TERRITORY_AREA){if(!areaLimitWarned)showToast("Territorio troppo grande: 2 ettari è il limite massimo. Riduci il perimetro prima di chiuderlo.");areaLimitWarned=true;$("drawState").textContent="Limite di 2 ettari superato";$("hint").textContent="Chiusura bloccata: il territorio misura "+fmtArea(m2)+". Riduci il perimetro a massimo 2 ettari e riprova.";return}
- if(window.zoneSaving)return;
+ if(window.zoneSaving||pendingNewTerritory)return;
  const previous=savedTerritories.find(z=>z.owner_id===currentUser.id);
- if(previous&&!confirm("Vuoi chiudere questo territorio e cancellare il regno precedente?")){showToast("Nuova conquista annullata: il regno precedente è stato conservato.");return}
- window.zoneSaving=true;
+ if(previous){
+  pendingNewTerritory={points:polygonPoints.map(p=>({lat:p.lat,lng:p.lng})),m2,walked:totalDistance};
+  $("zoneTitle").textContent="Hai chiuso un nuovo territorio!";
+  $("zoneDescription").textContent="Possiedi già un regno. Vuoi conservare quello precedente oppure sostituirlo con questo nuovo territorio?";
+  $("zoneArea").textContent=fmtArea(m2);$("zonePerimeter").textContent=fmtDistance(perimeter(polygonPoints));$("zoneDistance").textContent=fmtDistance(totalDistance);
+  $("zonePoints").textContent=polygonPoints.length;$("zoneDate").textContent="Nuovo territorio non ancora salvato";
+  $("zoneResources").innerHTML="";
+  $("territoryNameInput").closest(".territory-name-editor").hidden=true;
+  $("zoneOk").hidden=true;$("zoneReplaceActions").hidden=false;
+  $("zoneModal").classList.remove("hidden");return;
+ }
+ await commitNewTerritory({points:polygonPoints,m2,walked:totalDistance});
+}
+async function commitNewTerritory(candidate){
+ if(window.zoneSaving)return;window.zoneSaving=true;
  try{
-  const first=savedTerritories.filter(z=>z.owner_id===currentUser.id).length===0;
-  $("drawState").textContent="Salvataggio del territorio…";$("hint").textContent="Perimetro chiuso: sto registrando la tua conquista.";
-  const z=await saveClosedZone(polygonPoints,m2,totalDistance);
-  if(!z) return;
-  stopTracking(true);$("areaValue").textContent=fmtArea(m2);$("drawState").textContent="Territorio creato!";$("hint").textContent="Hai chiuso il perimetro: il tuo territorio è stato salvato.";
+  const first=!savedTerritories.some(z=>z.owner_id===currentUser.id);
+  $("drawState").textContent="Salvataggio del territorio…";
+  const z=await saveClosedZone(candidate.points,candidate.m2,candidate.walked);
+  if(!z)return;
+  pendingNewTerritory=null;stopTracking(true);$("areaValue").textContent=fmtArea(candidate.m2);
+  $("drawState").textContent="Territorio creato!";$("hint").textContent="Il nuovo territorio è stato salvato.";
+  $("zoneReplaceActions").hidden=true;$("zoneOk").hidden=false;
+  $("territoryNameInput").closest(".territory-name-editor").hidden=false;
   showZoneDetails(z,first);updatePositionBanner();
- }catch(e){showToast("Non è stato possibile salvare la zona: "+(e.message||"riprova"));$("hint").textContent="Errore nel salvataggio. Il perimetro è ancora aperto: torna vicino al punto iniziale per riprovare."}
+ }catch(e){showToast("Non è stato possibile salvare il territorio: "+(e.message||"riprova"))}
  finally{window.zoneSaving=false}
+}
+function discardNewTerritory(){
+ pendingNewTerritory=null;$("zoneModal").classList.add("hidden");
+ $("zoneReplaceActions").hidden=true;$("zoneOk").hidden=false;
+ $("territoryNameInput").closest(".territory-name-editor").hidden=false;
+ stopTracking(false);updatePositionBanner();showToast("Il regno precedente è stato conservato.");
 }
 function stopTracking(completed){recording=false;expansionZone=null;expansionLeft=false;expansionPath=[];expansionExit=null;areaLimitWarned=false;$("startBtn").disabled=false;$("startBtn").textContent="Inizia a tracciare";$("cancelBtn").disabled=true;$("liveDot").classList.remove("active");if(trackLine){map.removeLayer(trackLine);trackLine=null}if(!completed){track=[];totalDistance=0;updateStats();$("drawState").textContent="Tracciamento annullato";$("hint").textContent="Quando vuoi, puoi iniziare un nuovo percorso."}updateTerritoryControls()}
 function cancelTracking(){if(!recording)return;stopTracking(false);$("territoryName").textContent="Zona libera";showToast("Tracciamento annullato")}
@@ -825,7 +847,7 @@ $("territoryNav").addEventListener("click",()=>{toggleSidePanel("territoryPanel"
 document.querySelectorAll("[data-close-panel]").forEach(b=>b.addEventListener("click",closeSidePanels));
 document.querySelectorAll(".territory-tab").forEach(b=>b.addEventListener("click",()=>renderTerritoryTab(b.dataset.tab)));
 $("authSignup").addEventListener("click",registerPlayer);$("authLogin").addEventListener("click",loginPlayer);$("authGuest").addEventListener("click",enterAsGuest);
-$("zoneClose").onclick=()=>$("zoneModal").classList.add("hidden");$("zoneOk").onclick=()=>$("zoneModal").classList.add("hidden");$("resourcesClose").onclick=()=>$("resourcesModal").classList.add("hidden");$("resourcesOk").onclick=()=>$("resourcesModal").classList.add("hidden");
+$("zoneClose").onclick=()=>{if(pendingNewTerritory)discardNewTerritory();else $("zoneModal").classList.add("hidden")};$("zoneOk").onclick=()=>$("zoneModal").classList.add("hidden");$("zoneKeepOld").onclick=discardNewTerritory;$("zoneReplaceOld").onclick=()=>{if(pendingNewTerritory)commitNewTerritory(pendingNewTerritory)};$("resourcesClose").onclick=()=>$("resourcesModal").classList.add("hidden");$("resourcesOk").onclick=()=>$("resourcesModal").classList.add("hidden");
 db.auth.onAuthStateChange(()=>setTimeout(()=>refreshSession().catch(e=>authMessage(e.message)),0));
 $("locateBtn").addEventListener("click",startGpsWatch);$("startBtn").addEventListener("click",startTracking);$("cancelBtn").addEventListener("click",cancelTracking);
 $("recenterBtn").addEventListener("click",()=>{if(position){map.setView([position.lat,position.lng],17,{animate:false});if(playerMarker)playerMarker.setLatLng([position.lat,position.lng])}else{showToast("Attiva prima il GPS.");startGpsWatch()}});
