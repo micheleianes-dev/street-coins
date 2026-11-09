@@ -702,8 +702,19 @@ function startGpsWatch(){
  try{watchId=navigator.geolocation.watchPosition(event=>{if(gpsWatchdog){clearTimeout(gpsWatchdog);gpsWatchdog=null}$("locateBtn").disabled=false;onPosition(event)},gpsError,{enableHighAccuracy:true,maximumAge:0,timeout:30000})}
  catch(error){if(gpsWatchdog){clearTimeout(gpsWatchdog);gpsWatchdog=null}watchId=null;$("locateBtn").disabled=false;$("locateBtn").textContent="◎ Riprova GPS";showToast("Impossibile avviare il GPS: "+(error.message||"controlla i permessi."))}
 }
-function startTracking(){
- if(!currentUser){showAuth("Accedi prima di tracciare.");return}if(recording||!position)return;
+async function startTracking(){
+ if(!currentUser){showAuth("Accedi prima di tracciare.");return}if(recording||!position||window.startingNewKingdom)return;
+ const existing=savedTerritories.find(z=>z.owner_id===currentUser.id);
+ if(existing){
+  if(!confirm("Stai per tracciare un nuovo regno. Vuoi cancellare quello esistente?\n\nOK: elimina il regno attuale e inizia il tracciamento.\nAnnulla: conserva il regno e non iniziare."))return;
+  window.startingNewKingdom=true;$("startBtn").disabled=true;
+  try{
+   const {error}=await db.from("territorials_zones").delete().eq("id",existing.id).eq("owner_id",currentUser.id);
+   if(error)throw error;
+   await loadZones();showToast("Regno precedente cancellato. Inizia la nuova conquista!");
+  }catch(error){showToast("Impossibile cancellare il regno: "+(error.message||"riprova"));$("startBtn").disabled=false;window.startingNewKingdom=false;return}
+  window.startingNewKingdom=false;
+ }
  // La creazione di un territorio usa SEMPRE lo stesso flusso, anche se
  // l'utente possiede già un regno o parte all'interno dei suoi confini.
  // La presenza di un regno viene controllata solo DOPO la chiusura.
@@ -770,20 +781,6 @@ async function tryCloseLoop(current){
  const polygonPoints=closeCandidate(current);if(!polygonPoints)return;
  const m2=area(polygonPoints);if(m2<MIN_AREA){$("hint").textContent="Superficie troppo piccola: servono almeno "+fmtArea(MIN_AREA)+". Continua il percorso.";return}
  if(m2>MAX_TERRITORY_AREA){if(!areaLimitWarned)showToast("Territorio troppo grande: massimo 2 ettari.");areaLimitWarned=true;return}
- const previous=savedTerritories.find(z=>z.owner_id===currentUser.id);
- if(previous){
-  pendingNewTerritory={points:polygonPoints.map(p=>({lat:p.lat,lng:p.lng})),m2,walked:totalDistance,resources:{status:"pending",items:[]}};
-  $("zoneTitle").textContent="Hai chiuso un nuovo territorio!";
-  $("zoneDescription").textContent="Confronta il vecchio regno con il nuovo territorio prima di scegliere.";
-  $("zoneArea").textContent=fmtArea(m2);$("zonePerimeter").textContent=fmtDistance(perimeter(polygonPoints));$("zoneDistance").textContent=fmtDistance(totalDistance);
-  $("zonePoints").textContent=polygonPoints.length;$("zoneDate").textContent="Nuovo territorio non ancora salvato";
-  $("territoryNameInput").closest(".territory-name-editor").hidden=true;
-  $("zoneOk").hidden=true;$("zoneReplaceActions").hidden=false;
-  renderTerritoryComparison(previous,pendingNewTerritory);
-  $("zoneModal").classList.remove("hidden");
-  analyzeCandidateResources(pendingNewTerritory);
-  return;
- }
  await commitNewTerritory({points:polygonPoints,m2,walked:totalDistance});
 }
 function comparisonResources(resources){
