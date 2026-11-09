@@ -749,23 +749,28 @@ async function tryCloseExpansion(entry){
  }catch(e){console.error("Espansione:",e);showToast("Espansione non riuscita: "+(e.message||"riprova"))}
  finally{window.zoneSaving=false}
 }
-function closeCandidate(){
- if(track.length<MIN_POINTS)return null;
- const start=track[0],last=track[track.length-1];
+function closeCandidate(current){
+ if(track.length<4)return null;
+ const start=track[0],last=track[track.length-1],distanceFromStart=distance(start,current);
+ // Prima di chiudere bisogna essersi allontanati: evita chiusure immediate.
  if(!closureArmed){
-  if(distance(start,last)>Math.max(CLOSE_DISTANCE*1.5,36))closureArmed=true;
-  return null;
+  if(track.some(p=>distance(start,p)>=30))closureArmed=true;
+  else return null;
  }
- if(distance(start,last)>Math.min(CLOSE_DISTANCE,12))return null;
- const polygonPoints=track.slice(0,-1);
- if(polygonPoints.length<MIN_POINTS||totalDistance<Math.max(65,Math.sqrt(MIN_AREA)*4))return null;
- const feature=territoryFeature(polygonPoints);
+ // Soglia GPS di 24 m; la posizione corrente vale anche se il filtro a 4 m
+ // non l'ha ancora inserita nella traccia.
+ if(distanceFromStart>CLOSE_DISTANCE)return null;
+ const points=track.slice();
+ // Esclude soltanto l'ultimo punto se è già nel raggio di chiusura.
+ if(points.length>4&&distance(start,last)<=CLOSE_DISTANCE)points.pop();
+ if(points.length<4||totalDistance<50)return null;
+ const feature=territoryFeature(points);
  if(turf.kinks(feature).features.length){$("hint").textContent="Il percorso si incrocia: correggi il tracciato prima di chiuderlo.";return null}
- return polygonPoints;
+ return points;
 }
 async function tryCloseLoop(current){
  if(!currentUser||window.zoneSaving||pendingNewTerritory)return;
- const polygonPoints=closeCandidate();if(!polygonPoints)return;
+ const polygonPoints=closeCandidate(current);if(!polygonPoints)return;
  const m2=area(polygonPoints);if(m2<MIN_AREA)return;
  if(m2>MAX_TERRITORY_AREA){if(!areaLimitWarned)showToast("Territorio troppo grande: massimo 2 ettari.");areaLimitWarned=true;return}
  const previous=savedTerritories.find(z=>z.owner_id===currentUser.id);
