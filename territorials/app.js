@@ -755,25 +755,20 @@ async function tryCloseExpansion(entry){
 }
 function closeCandidate(current){
  if(track.length<MIN_POINTS)return null;
- const start=track[0],d=distance(start,current);
- if(!closureArmed){
-  if(track.some(p=>distance(start,p)>=30))closureArmed=true;
-  else return null;
- }
- if(d>CLOSE_DISTANCE)return null;
- // Stesso algoritmo per primo regno e per sostituzione: il vecchio regno
- // influisce solo sulla conferma, non sul riconoscimento della chiusura.
+ const start=track[0];
+ // Chiusura unica per tutte le conquiste: il punto GPS attuale deve
+ // essere vicino alla partenza, senza ulteriori blocchi nascosti.
+ if(distance(start,current)>CLOSE_DISTANCE)return null;
  const points=track.slice();
+ // Il campione finale, vicino alla partenza, non serve al poligono.
  if(points.length>MIN_POINTS&&distance(start,points[points.length-1])<=CLOSE_DISTANCE)points.pop();
- if(points.length<MIN_POINTS||totalDistance<50)return null;
- const feature=territoryFeature(points);
- if(turf.kinks(feature).features.length){$("hint").textContent="Il percorso si incrocia: correggi il tracciato prima di chiuderlo.";return null}
+ if(points.length<MIN_POINTS)return null;
  return points;
 }
 async function tryCloseLoop(current){
  if(!currentUser||window.zoneSaving||pendingNewTerritory)return;
  const polygonPoints=closeCandidate(current);if(!polygonPoints)return;
- const m2=area(polygonPoints);if(m2<MIN_AREA)return;
+ const m2=area(polygonPoints);if(m2<MIN_AREA){$("hint").textContent="Superficie troppo piccola: servono almeno "+fmtArea(MIN_AREA)+". Continua il percorso.";return}
  if(m2>MAX_TERRITORY_AREA){if(!areaLimitWarned)showToast("Territorio troppo grande: massimo 2 ettari.");areaLimitWarned=true;return}
  const previous=savedTerritories.find(z=>z.owner_id===currentUser.id);
  if(previous){
