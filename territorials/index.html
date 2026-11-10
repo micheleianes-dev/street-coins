@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=MedievalSharp&family=Spectral:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <title>Territorials — Le terre del regno</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="./style.css?v=294">
+<link rel="stylesheet" href="./style.css?v=295">
 </head>
 <body>
 <main id="app">
@@ -22,11 +22,7 @@
     <div class="brand-copy"><strong>TERRITORIALS</strong><small>CONQUISTA LE TERRE. SCRIVI LA STORIA.</small></div>
     <div class="gps-pill" id="gpsPill"><i></i><span>GPS non attivo</span></div><div class="test-mode-pill" id="testModePill" hidden>MODALITÀ TEST</div>
   </header>
-  <nav class="game-rail" aria-label="Menu di gioco">
-<button class="rail-button profile-rail-button" id="profileNav" aria-label="Profilo" title="Profilo"><span class="rail-glyph"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="10" r="5"/><path d="M7 27v-3c0-5 4-8 9-8s9 3 9 8v3H7Z"/><path d="M10 8l6-5 6 5"/></svg></span><span class="profile-notification-badge" id="profileNotificationBadge" hidden aria-hidden="true"></span></button>
-<button class="rail-button" id="exploreNav" aria-label="Traccia il tuo regno" title="Traccia il tuo regno"><span class="rail-glyph"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 27h24V13h-5V8h-5v5h-4V8H9v5H4z"/><path d="M13 27v-8h6v8M4 17h24M16 3v6M13 6h6"/></svg></span></button>
-<button class="rail-button" id="territoryNav" aria-label="Il tuo territorio" title="Il tuo territorio"><span class="rail-glyph"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M7 4h18v15c0 5-4 8-9 10-5-2-9-5-9-10V4Z"/><path d="m10 14 4 3 8-8M7 8h18"/></svg></span></button>
-</nav>
+  <nav class="game-rail" aria-label="Menu di gioco"><button class="rail-button profile-rail-button" id="profileNav" aria-label="Profilo" title="Profilo"><span class="rail-glyph"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="10" r="5"/><path d="M7 27v-3c0-5 4-8 9-8s9 3 9 8v3H7Z"/><path d="M10 8l6-5 6 5"/></svg></span><span class="profile-notification-badge" id="profileNotificationBadge" hidden aria-hidden="true"></span></button><button class="rail-button" id="exploreNav" aria-label="Crea il tuo regno" title="Crea il tuo regno"><span class="rail-glyph"><svg viewBox="0 0 36 36" aria-hidden="true"><path d="M5 25V15h5v-5h6v5h4v-5h6v5h5v10Z" fill="#b99d73"/><path d="M5 25V15h5v-5h6v5h4v-5h6v5h5v10Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M5 19h26M11 19v6m14-6v6M16 25v-5h4v5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3 31H33" stroke="#a64738" stroke-width="2.5" stroke-dasharray="3 3" stroke-linecap="round"/></svg></span></button><button class="rail-button" id="territoryNav" aria-label="Il tuo regno" title="Il tuo regno"><span class="rail-glyph"><svg viewBox="0 0 36 36" aria-hidden="true"><path d="M3 30V12h5V6h6v6h8V6h6v6h5v18Z" fill="#c1a273" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><path d="M2 11V5h7v6M12 11V5h7v6M26 11V5h7v6" fill="#e9d5ad" stroke="currentColor" stroke-width="1.8"/><path d="M11 30V16h14v14M15 30v-7a3 3 0 0 1 6 0v7" fill="#e9d5ad" stroke="currentColor" stroke-width="1.8"/><path d="M17 16V3m0 0 7 3-7 3" fill="#a5453b" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M5 30h26" stroke="currentColor" stroke-width="2"/></svg></span></button></nav>
   <section id="profilePanel" class="side-panel profile-panel" hidden><div class="side-panel-head"><strong>PROFILO GIOCATORE</strong><button class="panel-close" data-close-panel aria-label="Chiudi">×</button></div><div class="profile-tabs" role="tablist"><button class="profile-tab active" data-profile-tab="overview">Profilo</button><button class="profile-tab" data-profile-tab="achievements">Obiettivi</button></div><div id="profileTabContent" class="profile-tab-content"></div></section>
   <section id="territoryPanel" class="side-panel territory-panel" hidden><div class="side-panel-head"><strong>IL TUO TERRITORIO</strong><button class="panel-close" data-close-panel aria-label="Chiudi">×</button></div><div id="territorySummary" class="territory-summary"></div><div class="territory-tabs" role="tablist"><button class="territory-tab active" data-tab="resources">Risorse</button><button class="territory-tab" data-tab="population">Popolazione</button><button class="territory-tab" data-tab="warehouse">Magazzino</button><button class="territory-tab" data-tab="create">Crea</button></div><div id="territoryTabContent" class="territory-tab-content"></div></section>
   <section class="territory-banner" id="territoryBanner">
@@ -49,12 +45,12 @@
   </section>
   <button id="recenterBtn" class="recenter" aria-label="Centra sulla mia posizione" disabled>⌖</button>
   <div class="map-legend"><strong class="legend-heading"><span>✦</span> CAMPO DI GIOCO</strong><span><i class="line-key"></i> Il tuo percorso</span><span><i class="area-key"></i> Territorio conquistato</span><span><i class="rival-key"></i> Zone rivali</span></div>
-  <div class="app-version" aria-label="Versione applicazione">TERRITORIALS <span>v2.9.4</span></div>
+  <div class="app-version" aria-label="Versione applicazione">TERRITORIALS <span>v2.9.5</span></div>
   <div class="toast" id="toast" role="status"></div>
 </main>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7.2.0/turf.min.js"></script>
-<script src="./app.js?v=2.9.4"></script>
+<script src="./app.js?v=2.9.5"></script>
 </body>
 </html>
