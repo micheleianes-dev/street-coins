@@ -568,3 +568,35 @@ button,input,textarea,select{font-family:'Spectral',Georgia,serif}
 .knight-marker{width:64px!important;height:86px!important;filter:drop-shadow(0 0 2px #fff6dc) drop-shadow(0 2px 1px #142332cc)!important}
 .knight-marker svg{width:64px!important;height:86px!important;display:block;overflow:visible}
 .knight-ground-point{left:27px!important;bottom:0!important;width:10px!important;height:10px!important;background:#cf424a!important;border:2px solid white!important;box-shadow:0 0 0 2px #1c3047,0 0 0 5px #f5df9b99!important}
+
+/* v2.9.5 — barra inferiore araldica e cavaliere illustrato */
+.game-rail{
+ position:absolute!important;top:auto!important;bottom:max(12px,env(safe-area-inset-bottom))!important;
+ left:50%!important;right:auto!important;transform:translateX(-50%)!important;
+ display:flex!important;flex-direction:row!important;align-items:center!important;justify-content:center!important;
+ width:max-content!important;max-width:calc(100vw - 24px)!important;
+ gap:10px!important;padding:6px 13px!important;z-index:800!important
+}
+.game-rail:before,.game-rail:after{font-size:12px!important;line-height:1!important}
+.game-rail .rail-button,.game-rail #exploreNav{
+ width:49px!important;height:49px!important;min-width:49px!important;min-height:49px!important
+}
+.rail-glyph,.rail-glyph svg{width:32px!important;height:32px!important}
+.game-rail #exploreNav .rail-glyph svg{width:35px!important;height:35px!important}
+.side-panel{
+ top:auto!important;bottom:92px!important;right:12px!important;
+ transform:none!important;max-height:min(70vh,650px)!important
+}
+.draw-panel{bottom:max(94px,calc(env(safe-area-inset-bottom) + 86px))!important}
+.recenter{bottom:max(112px,calc(env(safe-area-inset-bottom) + 102px))!important}
+.knight-marker{filter:drop-shadow(0 0 2px #fff8e9) drop-shadow(0 2px 2px #192536d9)!important}
+@media(max-width:600px){
+ .game-rail{gap:9px!important;padding:5px 11px!important}
+ .game-rail .rail-button,.game-rail #exploreNav{width:46px!important;height:46px!important;min-width:46px!important;min-height:46px!important}
+ .draw-panel{left:10px!important;right:10px!important;max-height:calc(100dvh - 205px)!important;overflow:auto}
+ .side-panel{left:10px!important;right:10px!important;width:auto!important;max-height:calc(100dvh - 120px)!important}
+ .territory-banner{right:10px!important}
+ .recenter{right:12px!important}
+}
+@media(min-width:601px){.draw-panel{right:20px!important}.recenter{right:395px!important}}
+@media(max-height:590px){.draw-panel{max-height:45vh!important}.side-panel{max-height:55vh!important}}
