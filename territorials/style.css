@@ -563,3 +563,8 @@ button,input,textarea,select{font-family:'Spectral',Georgia,serif}
 .knight-marker svg{display:block;width:88px;height:112px;overflow:visible}
 .knight-ground-point{position:absolute;left:39px;bottom:0;width:10px;height:10px;border:2px solid #f9e6b7;border-radius:50%;background:#853f30;box-shadow:0 0 0 3px #8e5a3f66}
 .player-marker-icon.leaflet-marker-draggable{cursor:grab!important}
+
+/* V2.9.4 — miniatura nitida e contrastata del cavaliere */
+.knight-marker{width:64px!important;height:86px!important;filter:drop-shadow(0 0 2px #fff6dc) drop-shadow(0 2px 1px #142332cc)!important}
+.knight-marker svg{width:64px!important;height:86px!important;display:block;overflow:visible}
+.knight-ground-point{left:27px!important;bottom:0!important;width:10px!important;height:10px!important;background:#cf424a!important;border:2px solid white!important;box-shadow:0 0 0 2px #1c3047,0 0 0 5px #f5df9b99!important}
